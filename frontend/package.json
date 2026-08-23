@@ -1,6 +1,6 @@
 {
-  "name": "radar-x-frontend",
-  "version": "1.0.0",
+  "name": "sentinel-chain-frontend",
+  "version": "2.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev",

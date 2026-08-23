@@ -9,6 +9,7 @@ from backend.app.models.domain import (
     Target, TargetStatus, TargetInspection, ExtractionSchema, ExtractionField,
     ScraperDefinition, ScraperRun, DynamicRecord, ThreatRecord, TelemetryEvent, MonitorSchedule
 )
+from backend.app.models.exposure import Asset, ExposureRecord
 
 logger = logging.getLogger("sentinel.storage")
 
@@ -200,6 +201,43 @@ class DatabaseManager:
             recovered INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """)
+
+        # 10. Internal Asset Manifest Table
+        await self._conn.execute("""
+        CREATE TABLE IF NOT EXISTS assets (
+            asset_id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            component TEXT NOT NULL,
+            version TEXT NOT NULL,
+            environment TEXT DEFAULT 'production',
+            criticality TEXT DEFAULT 'high',
+            source TEXT DEFAULT 'manual',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """)
+
+        # Seed default asset manifest
+        await self._conn.execute("""
+        INSERT OR IGNORE INTO assets (asset_id, name, component, version, environment, criticality, source)
+        VALUES 
+            ('srv-prod-web-01', 'Apache HTTP Server', 'httpd', '2.4.50', 'production', 'high', 'manual'),
+            ('srv-prod-auth-02', 'OpenSSL Library', 'openssl', '3.0.7', 'production', 'high', 'manual'),
+            ('srv-edge-gw-01', 'Nginx Ingress', 'nginx', '1.24.0', 'dmz', 'medium', 'manual');
+        """)
+
+        # 11. Correlated Exposure Records Table
+        await self._conn.execute("""
+        CREATE TABLE IF NOT EXISTS correlated_exposures (
+            exposure_id TEXT PRIMARY KEY,
+            asset_id TEXT NOT NULL,
+            cve_id TEXT,
+            priority TEXT NOT NULL,
+            correlation_status TEXT NOT NULL,
+            match_type TEXT NOT NULL,
+            data TEXT NOT NULL,
+            calculated_at TEXT NOT NULL
         );
         """)
 
@@ -580,6 +618,77 @@ class DatabaseManager:
                     pass
             result.append(row_dict)
         return result
+
+    async def save_asset(self, asset: Asset) -> bool:
+        if not self._conn:
+            await self.initialize()
+        async with self._get_lock():
+            await self._conn.execute("""
+            INSERT INTO assets (asset_id, name, component, version, environment, criticality, source)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(asset_id) DO UPDATE SET
+                name=excluded.name,
+                component=excluded.component,
+                version=excluded.version,
+                environment=excluded.environment,
+                criticality=excluded.criticality,
+                source=excluded.source;
+            """, (asset.asset_id, asset.name, asset.component, asset.version, asset.environment, asset.criticality, asset.source))
+            await self._conn.commit()
+            return True
+
+    async def get_assets(self) -> List[Asset]:
+        if not self._conn:
+            await self.initialize()
+        cursor = await self._conn.execute("SELECT asset_id, name, component, version, environment, criticality, source FROM assets ORDER BY asset_id;")
+        rows = await cursor.fetchall()
+        return [
+            Asset(
+                asset_id=r[0],
+                name=r[1],
+                component=r[2],
+                version=r[3],
+                environment=r[4],
+                criticality=r[5],
+                source=r[6]
+            ) for r in rows
+        ]
+
+    async def save_exposure(self, exposure: ExposureRecord) -> bool:
+        if not self._conn:
+            await self.initialize()
+        async with self._get_lock():
+            data_json = json.dumps(exposure.model_dump())
+            await self._conn.execute("""
+            INSERT INTO correlated_exposures (exposure_id, asset_id, cve_id, priority, correlation_status, match_type, data, calculated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(exposure_id) DO UPDATE SET
+                priority=excluded.priority,
+                correlation_status=excluded.correlation_status,
+                match_type=excluded.match_type,
+                data=excluded.data,
+                calculated_at=excluded.calculated_at;
+            """, (
+                exposure.exposure_id, exposure.asset.asset_id, exposure.threat.cve_id,
+                exposure.priority, exposure.correlation_status.value, exposure.match_type.value,
+                data_json, exposure.calculated_at
+            ))
+            await self._conn.commit()
+            return True
+
+    async def get_exposures(self) -> List[ExposureRecord]:
+        if not self._conn:
+            await self.initialize()
+        cursor = await self._conn.execute("SELECT data FROM correlated_exposures ORDER BY calculated_at DESC;")
+        rows = await cursor.fetchall()
+        results = []
+        for r in rows:
+            try:
+                d = json.loads(r[0])
+                results.append(ExposureRecord(**d))
+            except Exception:
+                pass
+        return results
 
     async def close(self):
         if self._conn:

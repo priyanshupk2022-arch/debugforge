@@ -56,3 +56,9 @@ data/*.db-shm
 *.db
 *.db-wal
 *.db-shm
+
+# MCP & Local IDE Secrets
+.mcp.json
+mcp.json
+.cursor/
+

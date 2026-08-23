@@ -1,18 +1,22 @@
-# SENTINEL-CHAIN: Subagent-Driven Development Progress Ledger
+﻿# SENTINEL-CHAIN: Production Frontend Redesign & Implementation Ledger
 
-## Phase Breakdown & Status
-
-- [x] Task 1: Backend Foundation — Dependencies, Config, Domain Models & SQLite WAL Storage (`backend/app/config.py`, `domain.py`, `storage/db.py`) [PASSED: 2/2 unit tests]
-- [x] Task 2: Bright Data CLI Adapter & Singleton Queue Worker (`backend/app/engine/cli_runner.py`, `queue_manager.py`) [PASSED: 2/2 unit tests]
-- [x] Task 3: Transparent Chaos Proxy & Target Server (`backend/app/chaos/chaos_proxy.py`) [PASSED: 2/2 unit tests]
-- [x] Task 4: Playwright Evidence Collector (`backend/app/engine/evidence_collector.py`) [PASSED: 2/2 unit tests]
-- [x] Task 5: Gemini AI Diagnoser & RepairProposal Validator (`backend/app/engine/diagnoser.py`, `validator.py`) [PASSED: 1/1 unit test]
-- [x] Task 6: Autonomous Recovery Orchestrator & State Machine (`backend/app/engine/recovery_orchestrator.py`) [PASSED: 1/1 unit test]
-- [x] Task 7: FastAPI Routes & SSE Telemetry Hub (`backend/app/main.py`, `api/`, `telemetry/sse_hub.py`) [PASSED: 1/1 unit test]
-- [x] Task 8: Frontend Mission Control UI (Next.js, Tailwind, React Flow DAG, Chaos Slider, Live CVE Threat Stream) [PASSED: Next.js build clean]
-- [x] Task 9: Golden Dataset & Automated Evaluation Harness (`eval/golden_dataset.jsonl`, `eval/evaluate.py`) [PASSED: 100/100 cases, 100% recovery & defense]
-- [x] Task 10: Multi-Pass Adversarial Red-Team & End-to-End Testing [PASSED: 12/12 tests in 0.38s]
-- [x] Task 11: Final Release Gate & GitHub Auto-Sync [PASSED: Synced to origin/main]
+**Architecture Standard:** The Ledger Design System (Fraunces + IBM Plex Sans + IBM Plex Mono, Porcelain `#F6F7F5`, 20 semantic tokens, 100% Product Truth)
 
 ---
-**BUILD STATUS: 100% COMPLETE & PASSING ALL GATES**
+
+## Master Implementation Plan
+
+- [x] **Phase 1: Design Tokens & Typography Foundation** (20 Ledger tokens, Fraunces + IBM Plex Sans/Mono, tokens.css, globals.css)
+- [x] **Phase 2: Core Accessible Primitives** (Radix UI restyled to Ledger Tokens: Button, Badge, MissingFieldTag, Input, Textarea, Switch, ConfirmDialog, EmptyState, Skeleton)
+- [x] **Phase 3: Real Backend Hooks & Data Layer** (useHealth, useTargets, useTarget, useTelemetryStream with SSE readyState & event filtering)
+- [x] **Phase 4: Global Shell, Navigation & Command Palette** (TopBar, TargetSwitcher, LiveStatusChips, CommandPalette ⌘K, ConnectionBanner)
+- [x] **Phase 5: Targets Index (`/`) — Workspace Home** (Bento Grid, TargetCard, HealthTrend sparklines, StatusChip, AddTargetCard, EmptyState)
+- [x] **Phase 6: Onboarding Drawer (`/targets/new` overlay)** (4-Step sequential flow: Discover -> Inspect -> Schema Generation -> Bind & Run)
+- [x] **Phase 7: Target Workspace Shell & Gated Tabs** (Persistent header, WorkspaceTabs with 5 tabs and data gating)
+- [x] **Phase 8: Target Workspace Tabs** (OverviewTab, RecordsTab with unfabricated MissingFieldTag, SchemaTab with versioned Gemini generation, SettingsTab with honest monitoring label and chaos injection)
+- [x] **Phase 9: THE HERO — Evidence & Self-Healing Surface** (9-Node SignalPath DAG, EvidenceNode, DiagnosisPanel, ProposalPanel, SelectorDiff, GateResult, VerificationResult, TelemetryTimeline, ElapsedTimer)
+- [x] **Phase 10: Responsive & Accessibility Validation** (Desktop 1440px / Tablet 768px / Mobile 390px collapse, APCA/WCAG contrast compliance)
+- [x] **Phase 11: Production Build & Automated Verification** (Next.js 15 build clean 0 errors, 23/23 backend tests passed)
+
+---
+**STATUS: 100% COMPLETE & VERIFIED**

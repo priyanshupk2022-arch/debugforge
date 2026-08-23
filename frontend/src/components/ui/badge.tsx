@@ -1,48 +1,65 @@
-import * as React from "react"
-import { cva, type VariantProps } from "class-variance-authority"
-import { Slot } from "radix-ui"
+﻿import * as React from "react";
+import { cva, type VariantProps } from "class-variance-authority";
+import { clsx } from "clsx";
+import { twMerge } from "tailwind-merge";
 
-import { cn } from "@/lib/utils"
+function cn(...inputs: any[]) {
+  return twMerge(clsx(inputs));
+}
 
 const badgeVariants = cva(
-  "inline-flex w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-full border border-transparent px-2 py-0.5 text-xs font-medium whitespace-nowrap transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>svg]:pointer-events-none [&>svg]:size-3",
+  "inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-[var(--radius-xs)] text-xs font-medium tracking-wide transition-colors uppercase select-none border",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground [a&]:hover:bg-primary/90",
-        secondary:
-          "bg-secondary text-secondary-foreground [a&]:hover:bg-secondary/90",
-        destructive:
-          "bg-destructive text-white focus-visible:ring-destructive/20 dark:bg-destructive/60 dark:focus-visible:ring-destructive/40 [a&]:hover:bg-destructive/90",
+        verified:
+          "bg-[var(--verified-tint)] text-[var(--verified)] border-[var(--verified-border)]",
+        degraded:
+          "bg-[var(--degraded-tint)] text-[var(--degraded)] border-[var(--degraded-border)]",
+        broken:
+          "bg-[var(--broken-tint)] text-[var(--broken)] border-[var(--broken-border)]",
+        simulated:
+          "bg-[var(--simulated-tint)] text-[var(--simulated)] border-[var(--simulated-border)]",
+        information:
+          "bg-[var(--information-tint)] text-[var(--information)] border-[rgba(70,100,122,0.2)]",
+        neutral:
+          "bg-[var(--surface-sunken)] text-[var(--text-secondary)] border-[var(--border-default)]",
         outline:
-          "border-border text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
-        ghost: "[a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
-        link: "text-primary underline-offset-4 [a&]:hover:underline",
+          "bg-transparent text-[var(--text-secondary)] border-[var(--border-default)]",
       },
     },
     defaultVariants: {
-      variant: "default",
+      variant: "neutral",
     },
   }
-)
+);
 
-function Badge({
-  className,
-  variant = "default",
-  asChild = false,
-  ...props
-}: React.ComponentProps<"span"> &
-  VariantProps<typeof badgeVariants> & { asChild?: boolean }) {
-  const Comp = asChild ? Slot.Root : "span"
-
-  return (
-    <Comp
-      data-slot="badge"
-      data-variant={variant}
-      className={cn(badgeVariants({ variant }), className)}
-      {...props}
-    />
-  )
+export interface BadgeProps
+  extends React.HTMLAttributes<HTMLDivElement>,
+    VariantProps<typeof badgeVariants> {
+  dot?: boolean;
 }
 
-export { Badge, badgeVariants }
+function Badge({ className, variant, dot = false, children, ...props }: BadgeProps) {
+  return (
+    <div className={cn(badgeVariants({ variant }), className)} {...props}>
+      {dot && (
+        <span
+          className={cn(
+            "w-1.5 h-1.5 rounded-full shrink-0",
+            variant === "verified" && "bg-[var(--verified)]",
+            variant === "degraded" && "bg-[var(--degraded)]",
+            variant === "broken" && "bg-[var(--broken)]",
+            variant === "simulated" && "bg-[var(--simulated)]",
+            variant === "information" && "bg-[var(--information)]",
+            (!variant || variant === "neutral" || variant === "outline") &&
+              "bg-[var(--text-tertiary)]"
+          )}
+        />
+      )}
+      <span>{children}</span>
+    </div>
+  );
+}
+
+export { Badge, badgeVariants };

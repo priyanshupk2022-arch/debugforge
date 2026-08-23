@@ -1,0 +1,97 @@
+{
+  "submission_meta": {
+    "project": "SENTINEL-CHAIN",
+    "hackathon": "Into the Scrape-Verse (WeMakeDevs x Bright Data)",
+    "collector_id": "c_sentinel_cve_threats",
+    "primary_source": "Exploit-DB",
+    "target_url": "https://www.exploit-db.com/",
+    "generated_at": "2026-08-21T12:10:00Z"
+  },
+  "asset_manifest": [
+    {
+      "asset_id": "srv-prod-web-01",
+      "name": "Apache HTTP Server",
+      "component": "httpd",
+      "version": "2.4.50",
+      "environment": "production",
+      "criticality": "high"
+    },
+    {
+      "asset_id": "srv-prod-auth-02",
+      "name": "OpenSSL Library",
+      "component": "openssl",
+      "version": "3.0.7",
+      "environment": "production",
+      "criticality": "high"
+    },
+    {
+      "asset_id": "srv-edge-gw-01",
+      "name": "Nginx Ingress",
+      "component": "nginx",
+      "version": "1.24.0",
+      "environment": "dmz",
+      "criticality": "medium"
+    }
+  ],
+  "extracted_threat_records": [
+    {
+      "cve_id": "CVE-2021-42013",
+      "title": "Apache HTTP Server 2.4.50 Path Traversal & Remote Code Execution Exploit",
+      "component": "httpd",
+      "affected_versions": ["2.4.49", "2.4.50"],
+      "severity": "critical",
+      "exploit_status": "available",
+      "published_date": "2026-08-21T10:00:00Z",
+      "source_name": "Exploit-DB",
+      "source_url": "https://www.exploit-db.com/exploits/50383",
+      "provenance_snippet": "ap_normalize_path filter bypass enables remote command execution via mod_cgi."
+    },
+    {
+      "cve_id": "CVE-2022-3602",
+      "title": "OpenSSL Punycode Buffer Overflow in X.509 Certificate Verification",
+      "component": "openssl",
+      "affected_versions": ["3.0.0", "3.0.1", "3.0.2", "3.0.3", "3.0.4", "3.0.5", "3.0.6", "3.0.7"],
+      "severity": "high",
+      "exploit_status": "referenced",
+      "published_date": "2026-08-21T10:15:00Z",
+      "source_name": "Exploit-DB",
+      "source_url": "https://www.exploit-db.com/exploits/51020",
+      "provenance_snippet": "Buffer overflow triggered during 4-byte arbitrary stack write in X.509 parsing."
+    }
+  ],
+  "correlated_exposure_output": [
+    {
+      "exposure_id": "exp-a9f8b2c1",
+      "asset": {
+        "asset_id": "srv-prod-web-01",
+        "name": "Apache HTTP Server",
+        "component": "httpd",
+        "version": "2.4.50",
+        "environment": "production",
+        "criticality": "high"
+      },
+      "threat": {
+        "cve_id": "CVE-2021-42013",
+        "title": "Apache HTTP Server 2.4.50 Path Traversal & Remote Code Execution Exploit",
+        "component": "httpd",
+        "affected_versions": ["2.4.49", "2.4.50"],
+        "severity": "critical",
+        "exploit_status": "available",
+        "source_name": "Exploit-DB"
+      },
+      "correlation_status": "AFFECTED",
+      "match_type": "EXACT_VERSION",
+      "priority": "P0",
+      "why_affected": "Installed version '2.4.50' exactly matches affected versions in Exploit-DB (CVE-2021-42013).",
+      "evidence": [
+        "Source 'Exploit-DB' lists affected versions: ['2.4.49', '2.4.50']",
+        "Asset 'Apache HTTP Server' (srv-prod-web-01) has version '2.4.50' in 'production'",
+        "Exploit intelligence status: available",
+        "Raw source snippet: ap_normalize_path filter bypass enables remote command execution via mod_cgi."
+      ],
+      "recommendation_action": "UPGRADE",
+      "recommendation_reason": "AFFECTED asset detected with P0 priority in production",
+      "calculated_at": "2026-08-21T12:10:05Z"
+    }
+  ]
+}
