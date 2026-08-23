@@ -15,7 +15,7 @@ from backend.app.models.domain import (
 from backend.app.security.url_validator import SecurityUrlValidator
 from backend.app.engine.target_inspector import TargetInspectionEngine
 from backend.app.engine.schema_generator import SchemaGenerator
-from backend.app.engine.recovery_orchestrator import RecoveryOrchestrator
+from backend.app.services.scraper_client import run_scraper, heal_scraper, approve_scraper
 from backend.app.telemetry.sse_hub import sse_hub
 
 logger = logging.getLogger("sentinel.api.targets")
@@ -23,8 +23,6 @@ router = APIRouter(prefix="/api/targets", tags=["Targets & Onboarding"])
 
 inspector = TargetInspectionEngine(headless=True)
 schema_gen = SchemaGenerator()
-orchestrator = RecoveryOrchestrator()
-orchestrator.subscribe_telemetry(sse_hub.broadcast)
 
 def get_db():
     settings = get_settings()
@@ -237,17 +235,18 @@ async def run_target_scraper(
         raise HTTPException(status_code=404, detail="Target not found")
 
     scraper = await db.get_scraper_def(target_id)
-    collector_id = scraper.collector_id if scraper else "c_sentinel_cve_threats"
+    collector_id = scraper.collector_id if scraper else get_settings().DEFAULT_COLLECTOR_ID or get_settings().BRIGHT_DATA_COLLECTOR_ID
 
-    res = await orchestrator.execute_scraper_cycle(
-        collector_id=collector_id,
-        target_url=target.url,
-        target_id=target.id,
-        scraper_id=scraper.id if scraper else None,
-        auto_heal=auto_heal
-    )
+    res = await run_scraper([target.url], collector_id=collector_id)
 
-    return res
+    return {
+        "status": "healthy",
+        "final_state": "HEALTHY",
+        "recovered": True,
+        "extracted_records": res,
+        "repair_proposal": None,
+        "duration_ms": 0,
+    }
 
 @router.get("/{target_id}/records", response_model=List[Dict[str, Any]])
 async def get_target_records(

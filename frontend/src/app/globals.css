@@ -1,36 +1,552 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================================
+   THE LEDGER — Design System Tokens
+   Light, editorial-precision system for verifiable extraction evidence.
+   ============================================================================ */
 
 :root {
-  --background: #FAFAFA;
-  --foreground: #09090B;
-  --card-bg: #FFFFFF;
-  --card-border: #E4E4E7;
-  --primary: #4F46E5;
-  --primary-hover: #4338CA;
-  --accent: #10B981;
-  --muted: #71717A;
+  /* Core surfaces */
+  --paper: #F6F7F5;        /* App background — cool porcelain */
+  --surface: #FFFFFF;      /* Cards, panels, drawers */
+  --surface-sunken: #F0F1EE; /* Code/selector blocks, recessed evidence panels */
+
+  /* Typography */
+  --ink: #14171C;          /* Primary text */
+  --ink-muted: #565C64;    /* Secondary text, descriptions */
+  --ink-faint: #8A9098;    /* Placeholder, disabled, timestamps */
+
+  /* Lines & borders */
+  --line: #DEE1DC;         /* Default hairline borders */
+  --line-strong: #C7CBC4;  /* Emphasized dividers, table headers */
+
+  /* Chrome */
+  --brand-ink: #232A35;    /* Logotype, top-bar chrome */
+
+  /* Semantic state colors — RESERVED, never reused */
+  --accent: #1B4B7A;       /* Buttons, links, focus ring, active tab */
+  --verified: #146B54;     /* Verified/healthy/passed states ONLY */
+  --degraded: #A8671B;     /* Healing-in-progress, degraded health */
+  --broken: #A23B2E;       /* Broken/failed states, destructive actions */
+  --simulated: #5B5680;    /* Simulation labeling ONLY — never pass/fail */
+
+  /* Shadows — minimal, never colored */
+  --shadow-1: 0 1px 2px rgba(20,23,28,.04);
+  --shadow-2: 0 2px 8px rgba(20,23,28,.08);
+  --shadow-3: 0 8px 32px rgba(20,23,28,.12);
+
+  /* Radius */
+  --radius-xs: 3px;        /* Badges, tags */
+  --radius-sm: 6px;        /* Inputs, buttons, small cards */
+  --radius-md: 10px;       /* Cards, panels */
+  --radius-lg: 14px;       /* Modals, drawers */
+
+  /* Transitions */
+  --transition-fast: 120ms ease-out;
+  --transition-base: 220ms ease-out;
 }
 
-body {
-  background-color: #F8FAFC;
-  color: #0F172A;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+/* Dark mode — not used in this design, but keep variables for completeness */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #14171C;
+    --surface: #1A1D23;
+    --surface-sunken: #12151A;
+    --ink: #F6F7F5;
+    --ink-muted: #A0A5AD;
+    --ink-faint: #6B7078;
+    --line: #2E3238;
+    --line-strong: #3D4148;
+    --brand-ink: #F6F7F5;
+    --accent: #4A9BD8;
+    --verified: #2DB88A;
+    --degraded: #D4A33F;
+    --broken: #E86C61;
+    --simulated: #A5A0C8;
+  }
+}
+
+/* ============================================================================
+   BASE STYLES
+   ============================================================================ */
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Custom modern scrollbars */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+body {
+  font-family: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background-color: var(--paper);
+  color: var(--ink);
+  line-height: 1.6;
+  margin: 0;
+  min-height: 100vh;
 }
+
+/* Font loading — local first, fallback to system */
+@font-face {
+  font-family: "Fraunces";
+  font-display: swap;
+  src: local("Fraunces"), url("https://fonts.gstatic.com/s/fraunces/v32/TYRy4g0lKK5YRPdDQ7mU38e9qEw.woff2") format("woff2");
+  font-weight: 400 600;
+}
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-display: swap;
+  src: local("IBM Plex Sans"), url("https://fonts.gstatic.com/s/ibmplexsans/v20/zYXgKvElMYYaJe8bpLHnCwDKjQ.woff2") format("woff2");
+  font-weight: 400 600;
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-display: swap;
+  src: local("IBM Plex Mono"), url("https://fonts.gstatic.com/s/ibmplexmono/v19/-F62fjtqLzI2JPCgQBnw7HFQlw.woff2") format("woff2");
+  font-weight: 400 500;
+}
+
+/* ============================================================================
+   TYPOGRAPHY UTILITIES
+   ============================================================================ */
+
+.font-display {
+  font-family: "Fraunces", serif;
+  font-weight: 500;
+}
+
+.font-mono-data {
+  font-family: "IBM Plex Mono", monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+.font-label {
+  font-family: "IBM Plex Sans", sans-serif;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 11px;
+}
+
+/* ============================================================================
+   LAYOUT UTILITIES
+   ============================================================================ */
+
+.container-workspace {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+.container-drawer {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* ============================================================================
+   COMPONENT BASE STYLES
+   ============================================================================ */
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  font-family: inherit;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background-color: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: #153d62;
+  border-color: #153d62;
+}
+
+.btn-secondary {
+  background-color: var(--surface);
+  color: var(--ink);
+  border-color: var(--line);
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: var(--surface-sunken);
+  border-color: var(--line-strong);
+}
+
+.btn-ghost {
+  background-color: transparent;
+  color: var(--ink-muted);
+  border-color: transparent;
+}
+
+.btn-ghost:hover:not(:disabled) {
+  background-color: var(--surface-sunken);
+  color: var(--ink);
+}
+
+.btn-destructive {
+  background-color: var(--broken);
+  color: #fff;
+  border-color: var(--broken);
+}
+
+.btn-destructive:hover:not(:disabled) {
+  background-color: #8b2f25;
+  border-color: #8b2f25;
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.btn-lg {
+  padding: 14px 24px;
+  font-size: 16px;
+}
+
+/* Inputs */
+.input {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-family: inherit;
+  background-color: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  color: var(--ink);
+  transition: all var(--transition-fast);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(27, 75, 122, 0.15);
+}
+
+.input::placeholder {
+  color: var(--ink-faint);
+}
+
+.input-error {
+  border-color: var(--broken);
+}
+
+.input-error:focus {
+  box-shadow: 0 0 0 3px rgba(162, 59, 46, 0.15);
+}
+
+/* Cards */
+.card {
+  background-color: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-1);
+}
+
+.card-hover:hover {
+  box-shadow: var(--shadow-2);
+  border-color: var(--line-strong);
+}
+
+/* Badges / Status tags */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: var(--radius-xs);
+  font-family: "IBM Plex Sans", sans-serif;
+}
+
+.badge-verified {
+  background-color: rgba(20, 107, 84, 0.12);
+  color: var(--verified);
+  border: 1px solid rgba(20, 107, 84, 0.25);
+}
+
+.badge-degraded {
+  background-color: rgba(168, 103, 27, 0.12);
+  color: var(--degraded);
+  border: 1px solid rgba(168, 103, 27, 0.25);
+}
+
+.badge-broken {
+  background-color: rgba(162, 59, 46, 0.12);
+  color: var(--broken);
+  border: 1px solid rgba(162, 59, 46, 0.25);
+}
+
+.badge-simulated {
+  background-color: rgba(91, 86, 128, 0.12);
+  color: var(--simulated);
+  border: 1px solid rgba(91, 86, 128, 0.25);
+}
+
+.badge-neutral {
+  background-color: var(--surface-sunken);
+  color: var(--ink-muted);
+  border: 1px solid var(--line);
+}
+
+/* Code/selector blocks */
+.code-block {
+  font-family: "IBM Plex Mono", monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  background-color: var(--surface-sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  overflow-x: auto;
+  color: var(--ink);
+}
+
+/* Tables */
+.table-container {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.table th {
+  text-align: left;
+  padding: 10px 12px;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--ink-muted);
+  background-color: var(--surface-sunken);
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+}
+
+.table tr:last-child td {
+  border-bottom: none;
+}
+
+.table tr:hover td {
+  background-color: var(--surface-sunken);
+}
+
+/* Focus visible for accessibility */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
-  background: #CBD5E1;
-  border-radius: 9999px;
+  background-color: var(--line-strong);
+  border-radius: 4px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
-  background: #94A3B8;
+  background-color: var(--ink-muted);
 }
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ============================================================================
+   ANIMATION KEYFRAMES
+   ============================================================================ */
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-subtle {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.animate-fade-in {
+  animation: fade-in var(--transition-base) forwards;
+}
+
+.animate-pulse-subtle {
+  animation: pulse-subtle 2s ease-in-out infinite;
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Staggered entrance for grid items */
+.stagger-1 { animation-delay: 40ms; }
+.stagger-2 { animation-delay: 80ms; }
+.stagger-3 { animation-delay: 120ms; }
+.stagger-4 { animation-delay: 160ms; }
+.stagger-5 { animation-delay: 200ms; }
+.stagger-6 { animation-delay: 240ms; }
+
+/* ============================================================================
+   UTILITY CLASSES
+   ============================================================================ */
+
+.text-ink { color: var(--ink); }
+.text-ink-muted { color: var(--ink-muted); }
+.text-ink-faint { color: var(--ink-faint); }
+.text-verified { color: var(--verified); }
+.text-degraded { color: var(--degraded); }
+.text-broken { color: var(--broken); }
+.text-simulated { color: var(--simulated); }
+.text-accent { color: var(--accent); }
+
+.bg-paper { background-color: var(--paper); }
+.bg-surface { background-color: var(--surface); }
+.bg-surface-sunken { background-color: var(--surface-sunken); }
+
+.border-line { border-color: var(--line); }
+.border-line-strong { border-color: var(--line-strong); }
+
+.shadow-1 { box-shadow: var(--shadow-1); }
+.shadow-2 { box-shadow: var(--shadow-2); }
+.shadow-3 { box-shadow: var(--shadow-3); }
+
+.rounded-xs { border-radius: var(--radius-xs); }
+.rounded-sm { border-radius: var(--radius-sm); }
+.rounded-md { border-radius: var(--radius-md); }
+.rounded-lg { border-radius: var(--radius-lg); }
+
+/* Grid */
+.grid-bento {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 24px;
+}
+
+@media (max-width: 1024px) {
+  .grid-bento {
+    grid-template-columns: repeat(6, 1fr);
+    gap: 16px;
+  }
+}
+
+@media (max-width: 640px) {
+  .grid-bento {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+}
+
+/* Flex helpers */
+.flex-center { display: flex; align-items: center; justify-content: center; }
+.flex-between { display: flex; align-items: center; justify-content: space-between; }
+.flex-gap-8 { display: flex; gap: 8px; }
+.flex-gap-12 { display: flex; gap: 12px; }
+.flex-gap-16 { display: flex; gap: 16px; }
+
+/* Typography scale */
+.text-display-lg { font-size: 56px; line-height: 1.1; }
+.text-display-md { font-size: 40px; line-height: 1.2; }
+.text-display-sm { font-size: 32px; line-height: 1.2; }
+.text-heading-lg { font-size: 24px; line-height: 1.3; }
+.text-heading-md { font-size: 20px; line-height: 1.4; }
+.text-heading-sm { font-size: 18px; line-height: 1.4; }
+.text-body-lg { font-size: 16px; line-height: 1.6; }
+.text-body { font-size: 14px; line-height: 1.6; }
+.text-body-sm { font-size: 13px; line-height: 1.5; }
+.text-label { font-size: 11px; line-height: 1.4; }
+.text-caption { font-size: 10px; line-height: 1.4; }
+
+/* Spacing scale (matches design spec) */
+.space-1 { padding: 4px; }
+.space-2 { padding: 8px; }
+.space-3 { padding: 12px; }
+.space-4 { padding: 16px; }
+.space-6 { padding: 24px; }
+.space-8 { padding: 32px; }
+.space-12 { padding: 48px; }
+.space-16 { padding: 64px; }
+.space-24 { padding: 96px; }
+
+/* State indicators */
+.status-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-dot.verified { background-color: var(--verified); }
+.status-dot.degraded { background-color: var(--degraded); }
+.status-dot.broken { background-color: var(--broken); }
+.status-dot.simulated { background-color: var(--simulated); }
+.status-dot.connecting { background-color: var(--accent); animation: pulse-subtle 1.5s ease-in-out infinite; }
+.status-dot.offline { background-color: var(--ink-faint); }

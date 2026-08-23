@@ -1,262 +1,230 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import { SleekHeader } from '@/components/SleekHeader';
-import { LandingScreen } from '@/components/screens/LandingScreen';
-import { TargetScreen } from '@/components/screens/TargetScreen';
-import { DataGridScreen } from '@/components/screens/DataGridScreen';
-import { SelfHealingScreen } from '@/components/screens/SelfHealingScreen';
+import { Plus, Zap, BarChart2, Search, Loader2, AlertCircle, ChevronRight, Wifi, WifiOff, Shield, ExternalLink } from "lucide-react";
+import { useState, useEffect } from "react";
+import { TopBar } from "@/components/TopBar";
+import { TargetCard } from "@/components/TargetCard";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+interface Target {
+  id: string;
+  name: string;
+  url: string;
+  domain: string;
+  status: string;
+  health: number;
+  is_demo: boolean;
+  last_run?: string;
+  monitoring_enabled: boolean;
+  schedule: string;
+}
 
-export default function App() {
-  const [currentScreen, setCurrentScreen] = useState<number>(0);
-  const [targetUrl, setTargetUrl] = useState<string>('http://127.0.0.1:8000/api/proxy/target');
-  const [targetName, setTargetName] = useState<string>('Exploit-DB Security Advisories');
-  const [intentPrompt, setIntentPrompt] = useState<string>('Extract CVE ID, vulnerability title, severity, affected software, and published date');
-  const [records, setRecords] = useState<any[]>([]);
-  const [isScraping, setIsScraping] = useState<boolean>(false);
-  const [isHealing, setIsHealing] = useState<boolean>(false);
-  const [terminalLogs, setTerminalLogs] = useState<any[]>([
-    {
-      id: 'init-1',
-      timestamp: new Date().toLocaleTimeString(),
-      command: 'npx -p @brightdata/cli bdata login',
-      output: 'Logged in successfully. Key: 6cf4****dceb\nChecking for required zones...\nZone "cli_unlocker" already exists.\nZone "cli_browser" already exists.',
-      status: 'success',
-      durationMs: 120
-    }
-  ]);
-  const [latestDiagnosis, setLatestDiagnosis] = useState<any>(null);
+interface EmptyStateProps {
+  onCreateDemo: () => void;
+}
 
-  // Fetch threat records on mount
-  const fetchRecords = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/api/threats?limit=50`);
-      if (res.ok) {
-        const data = await res.json();
-        setRecords(data);
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  };
+function EmptyState({ onCreateDemo }: EmptyStateProps) {
+  return (
+    <div className="col-span-12 animate-fade-in">
+      <article className="card p-8 lg:p-12 text-center max-w-3xl mx-auto">
+        <div className="w-16 h-16 rounded-lg bg-surface-sunken flex items-center justify-center mx-auto mb-6">
+          <Zap className="w-8 h-8 text-accent" />
+        </div>
+        <h2 className="font-display text-display-sm text-ink mb-3">
+          No targets yet
+        </h2>
+        <p className="text-body-lg text-ink-muted mb-8 max-w-lg mx-auto">
+          Sentinel-Chain extracts structured data from any website and keeps it flowing
+          even when the site changes. Start by adding a target — try the guided demo
+          to see the self-healing loop in action.
+        </p>
+        <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+          <button
+            onClick={onCreateDemo}
+            className="btn btn-primary btn-lg w-full sm:w-auto"
+          >
+            <Zap className="w-5 h-5" />
+            Try the Demo Target
+          </button>
+          <button className="btn btn-secondary btn-lg w-full sm:w-auto">
+            <Plus className="w-5 h-5" />
+            Add Your Own Target
+          </button>
+        </div>
+        <div className="mt-8 pt-8 border-t border-line">
+          <p className="text-body-sm text-ink-muted">
+            The demo target runs against a live chaos proxy that simulates DOM mutations.
+            Watch the <span className="font-mono-data text-accent">Evidence & Healing</span> tab
+            for the real signal path: Run → Broken → Evidence → Diagnosis → Proposal → Gate → Heal → Verified.
+          </p>
+        </div>
+      </article>
+    </div>
+  );
+}
 
-  useEffect(() => {
-    fetchRecords();
-  }, []);
-
-  // Add terminal log helper
-  const addTerminalLog = (command: string, output: string, status: 'running' | 'success' | 'failed' | 'healed', durationMs?: number) => {
-    const newLog = {
-      id: `log-${Date.now()}-${Math.random()}`,
-      timestamp: new Date().toLocaleTimeString(),
-      command,
-      output,
-      status,
-      durationMs
-    };
-    setTerminalLogs((prev) => [...prev, newLog]);
-  };
-
-  // Run Scraper with Bright Data Scraper Studio
-  const handleRunScraper = async () => {
-    setIsScraping(true);
-    const start = performance.now();
-
-    addTerminalLog(
-      `npx -p @brightdata/cli bdata scraper run c_sentinel_cve_threats --url ${targetUrl} --json`,
-      'Routing through Bright Data Unlocker Proxy & parsing target security feed...',
-      'running'
-    );
-
-    try {
-      const res = await fetch(`${API_BASE}/api/scraper/trigger`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          collector_id: 'c_sentinel_cve_threats',
-          target_url: targetUrl,
-          auto_heal: true
-        })
-      });
-
-      const data = await res.json();
-      const dur = performance.now() - start;
-
-      if (data?.result?.extracted_records) {
-        setRecords(data.result.extracted_records);
-      } else {
-        await fetchRecords();
-      }
-
-      addTerminalLog(
-        `npx -p @brightdata/cli bdata scraper run c_sentinel_cve_threats --url ${targetUrl} --json`,
-        `Extracted ${records.length || 20} clean vulnerability records.\nStatus: 200 OK | Data validation passed.`,
-        'success',
-        dur
-      );
-
-      // Navigate smoothly to Screen 2 (Data Grid)
-      setCurrentScreen(2);
-    } catch (e: any) {
-      addTerminalLog(
-        `bdata scraper run c_sentinel_cve_threats --url ${targetUrl}`,
-        `Error: ${e.message}`,
-        'failed',
-        performance.now() - start
-      );
-    } finally {
-      setIsScraping(false);
-    }
-  };
-
-  // Simulate Website Redesign Break & Auto-Heal via bdata heal
-  const handleSimulateBreakAndHeal = async () => {
-    setIsHealing(true);
-    const start = performance.now();
-
-    // Step A: Mutate website layout
-    addTerminalLog(
-      'Target Security Advisory Feed Layout Mutated (HTTP 200 with 0 Records)',
-      'DOM Mutation: <table> restructured to CSS Grid (.exploit-card containers).\nFailure Detector raised BROKEN state.',
-      'failed'
-    );
-
-    try {
-      // Inject chaos
-      await fetch(`${API_BASE}/api/chaos/mutate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mode: 'table_to_cards' })
-      });
-
-      // Gemini 3.7 Diagnosis
-      addTerminalLog(
-        'Gemini 3.7 Flash: Inspecting Playwright Accessibility Object Model (AOM)...',
-        'Diagnosis: Target changed table rows to card containers.\nSynthesizing repair prompt for Scraper Studio...',
-        'running'
-      );
-
-      const healRes = await fetch(`${API_BASE}/api/scraper/trigger`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          collector_id: 'c_sentinel_cve_threats',
-          auto_heal: true
-        })
-      });
-
-      const dur = performance.now() - start;
-
-      setLatestDiagnosis({
-        brokenSelector: 'table.cve-grid tr td.cve-id',
-        healedSelector: 'div.exploit-card span.cve-tag',
-        reason: 'Target security feed altered HTML table into responsive article card grid',
-        status: 'HEALTHY'
-      });
-
-      addTerminalLog(
-        'npx -p @brightdata/cli bdata scraper heal c_sentinel_cve_threats -- "Extract cve_id from div.exploit-card span.cve-tag"',
-        'Scraper repaired in-place in Bright Data Scraper Studio.\nExecuting bdata scraper approve c_sentinel_cve_threats...\nRecovery Verified: 100% data extraction restored.',
-        'healed',
-        dur
-      );
-
-      await fetchRecords();
-    } catch (e: any) {
-      addTerminalLog('Self-Healing Engine', `Error: ${e.message}`, 'failed');
-    } finally {
-      setIsHealing(false);
-    }
-  };
-
-  // Export CSV
-  const handleExportCSV = () => {
-    if (records.length === 0) return;
-    const sample = records[0].data || records[0];
-    const headers = Object.keys(sample).filter((k) => !['id', 'run_id', 'target_id'].includes(k));
-    const rows = records.map((r) => {
-      const dataObj = r.data || r;
-      return headers.map((h) => `"${(dataObj[h] || '').toString().replace(/"/g, '""')}"`);
-    });
-    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `sentinel_threat_intel_${Date.now()}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
+function TargetsGrid({ targets, onRun, onOpen, onDelete }: {
+  targets: Target[];
+  onRun: (id: string) => void;
+  onOpen: (id: string) => void;
+  onDelete: (id: string) => void;
+}) {
+  const demoTarget = targets.find(t => t.is_demo);
+  const otherTargets = targets.filter(t => !t.is_demo);
 
   return (
-    <div className="flex flex-col min-h-screen bg-[#F8FAFC] text-slate-900 font-sans">
-      {/* Top Header with Stepper and Bright Data Status */}
-      <SleekHeader
-        currentStep={currentScreen}
-        onSelectStep={(s) => setCurrentScreen(s)}
-        totalRecords={records.length}
-        isScraping={isScraping}
-        onExportCSV={handleExportCSV}
+    <div className="grid-bento animate-fade-in">
+      {demoTarget && (
+        <TargetCard
+          target={demoTarget}
+          onRun={onRun}
+          onOpen={onOpen}
+          onDelete={onDelete}
+          isPrimary={true}
+        />
+      )}
+      {otherTargets.map((target, i) => (
+        <TargetCard
+          key={target.id}
+          target={target}
+          onRun={onRun}
+          onOpen={onOpen}
+          onDelete={onDelete}
+        />
+      ))}
+      {targets.length === 0 && <EmptyState onCreateDemo={() => {}} />}
+    </div>
+  );
+}
+
+export default function TargetsIndex() {
+  const [targets, setTargets] = useState<Target[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchTargets = async () => {
+      try {
+        const res = await fetch("/api/targets");
+        if (!res.ok) throw new Error("Failed to load targets");
+        const data = await res.json();
+        setTargets(data);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Unknown error");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchTargets();
+  }, []);
+
+  const handleRun = (id: string) => {
+    const target = targets.find(t => t.id === id);
+    if (!target) return;
+    window.location.href = `/targets/${id}?run=true`;
+  };
+
+  const handleOpen = (id: string) => {
+    window.location.href = `/targets/${id}`;
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Delete this target? This cannot be undone.")) return;
+    try {
+      const res = await fetch(`/api/targets/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setTargets(prev => prev.filter(t => t.id !== id));
+      }
+    } catch (e) {
+      alert("Failed to delete target");
+    }
+  };
+
+  const handleCreateDemo = async () => {
+    try {
+      const res = await fetch("/api/targets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: "Demo: Shopalto Product (Self-Healing)",
+          url: "https://shopalto.xyz/product/aurora-wireless-headphones",
+          is_demo: true,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        window.location.href = `/targets/${data.target.id}?run=true`;
+      }
+    } catch (e) {
+      alert("Failed to create demo target");
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-paper">
+        <TopBar onAddTarget={handleCreateDemo} onCommandPalette={() => {}} />
+        <main className="container-workspace py-8">
+          <div className="grid-bento">
+            {[1, 2, 3].map(i => (
+              <article key={i} className="card col-span-12 lg:col-span-4 animate-pulse-subtle">
+                <div className="p-4 space-y-4">
+                  <div className="h-6 bg-surface-sunken rounded w-3/4 animate-pulse-subtle" />
+                  <div className="h-4 bg-surface-sunken rounded w-1/2 animate-pulse-subtle" />
+                  <div className="h-4 bg-surface-sunken rounded w-full animate-pulse-subtle" />
+                  <div className="h-4 bg-surface-sunken rounded w-2/3 animate-pulse-subtle" />
+                </div>
+              </article>
+            ))}
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-paper">
+      <TopBar
+        onAddTarget={handleCreateDemo}
+        onCommandPalette={() => {}}
       />
+      <main className="container-workspace py-8">
+        {/* Page header */}
+        <header className="mb-8">
+          <h1 className="font-display text-display-md text-brand-ink mb-2">
+            Targets
+          </h1>
+          <p className="text-body text-ink-muted">
+            {targets.length} target{targets.length !== 1 ? "s" : ""} •{" "}
+            <span className="font-mono-data text-accent">
+              {targets.filter(t => t.status === "HEALTHY").length} healthy
+            </span>
+            {" • "}
+            <span className="font-mono-data text-degraded">
+              {targets.filter(t => t.status === "DEGRADED").length} degraded
+            </span>
+            {" • "}
+            <span className="font-mono-data text-broken">
+              {targets.filter(t => t.status === "FAILED").length} failed
+            </span>
+          </p>
+        </header>
 
-      {/* Screen Render Switcher */}
-      <main className="flex-1 flex flex-col">
-        {currentScreen === 0 && (
-          <LandingScreen onLaunch={() => setCurrentScreen(1)} />
+        {error && (
+          <div className="mb-6 p-4 rounded-md bg-broken/10 border border-broken/20 text-broken flex items-center justify-between animate-fade-in">
+            <span>Failed to load targets: {error}</span>
+            <button onClick={() => window.location.reload()} className="btn btn-ghost btn-sm text-broken">
+              Retry
+            </button>
+          </div>
         )}
 
-        {currentScreen === 1 && (
-          <TargetScreen
-            targetUrl={targetUrl}
-            setTargetUrl={setTargetUrl}
-            targetName={targetName}
-            setTargetName={setTargetName}
-            intentPrompt={intentPrompt}
-            setIntentPrompt={setIntentPrompt}
-            isScraping={isScraping}
-            onRunScraper={handleRunScraper}
-            onBack={() => setCurrentScreen(0)}
-          />
-        )}
-
-        {currentScreen === 2 && (
-          <DataGridScreen
-            records={records}
-            isLoading={isScraping}
-            terminalLogs={terminalLogs}
-            collectorId="c_sentinel_cve_threats"
-            targetUrl={targetUrl}
-            onExportCSV={handleExportCSV}
-            onBack={() => setCurrentScreen(1)}
-            onNext={() => setCurrentScreen(3)}
-          />
-        )}
-
-        {currentScreen === 3 && (
-          <SelfHealingScreen
-            isHealing={isHealing}
-            onSimulateBreakAndHeal={handleSimulateBreakAndHeal}
-            latestDiagnosis={latestDiagnosis}
-            terminalLogs={terminalLogs}
-            collectorId="c_sentinel_cve_threats"
-            targetUrl={targetUrl}
-            onBack={() => setCurrentScreen(2)}
-            onRestart={() => setCurrentScreen(1)}
-          />
-        )}
+        <TargetsGrid
+          targets={targets}
+          onRun={handleRun}
+          onOpen={handleOpen}
+          onDelete={handleDelete}
+        />
       </main>
-
-      {/* Modern Footer */}
-      <footer className="w-full border-t border-slate-200 bg-white py-3.5 px-6 flex flex-wrap items-center justify-between text-xs font-mono text-slate-500">
-        <div>
-          SENTINEL-CHAIN // WE-MAKE-DEVS SCRAPE-VERSE HACKATHON 2026
-        </div>
-        <div>
-          POWERED BY <strong>BRIGHT DATA SCRAPER STUDIO</strong> & <strong>GEMINI 3.7 FLASH</strong>
-        </div>
-      </footer>
     </div>
   );
 }

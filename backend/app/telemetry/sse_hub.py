@@ -26,12 +26,18 @@ class SSEHub:
             self._subscribers.remove(q)
             logger.info(f"SSE client unsubscribed. Total active: {len(self._subscribers)}")
 
-    async def broadcast(self, event: TelemetryEvent) -> None:
-        payload_data = event.model_dump()
-        if "timestamp" in payload_data and hasattr(payload_data["timestamp"], "isoformat"):
-            payload_data["timestamp"] = payload_data["timestamp"].isoformat()
+    async def broadcast(self, event) -> None:
+        if hasattr(event, "model_dump"):
+            payload_data = event.model_dump()
+        elif isinstance(event, dict):
+            payload_data = dict(event)
         else:
-            payload_data["timestamp"] = str(payload_data.get("timestamp"))
+            payload_data = {"node_id": "unknown", "status": str(event), "message": ""}
+        if "timestamp" not in payload_data or payload_data["timestamp"] is None:
+            from datetime import datetime
+            payload_data["timestamp"] = datetime.utcnow().isoformat()
+        if hasattr(payload_data["timestamp"], "isoformat"):
+            payload_data["timestamp"] = payload_data["timestamp"].isoformat()
 
         msg_str = f"data: {json.dumps(payload_data)}\n\n"
         for q in list(self._subscribers):

@@ -1,19 +1,37 @@
 import type { Metadata } from "next";
+import { Inter } from "next/font/google";
 import "./globals.css";
 
+const inter = Inter({
+  subsets: ["latin"],
+  variable: "--font-inter",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
-  title: "SENTINEL-CHAIN // Autonomous Cyber Threat Intelligence Self-Healing Engine",
-  description: "Autonomous self-healing proxy pipeline for Bright Data Scraper Studio & Gemini 3.1 Pro",
+  title: "Sentinel-Chain — Autonomous Web Intelligence",
+  description: "Self-healing web data extraction with Bright Data Scraper Studio",
 };
 
 export default function RootLayout({
   children,
-}: Readonly<{
+}: {
   children: React.ReactNode;
-}>) {
+}) {
   return (
-    <html lang="en" className="dark">
-      <body className="antialiased h-screen overflow-hidden bg-[#070A10] text-slate-100 selection:bg-sky-500/30 selection:text-sky-300">
+    <html lang="en" className={inter.variable}>
+      <head>
+        <link
+          rel="preconnect"
+          href="https://fonts.gstatic.com"
+          crossOrigin="anonymous"
+        />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..600;1,9..144,400..600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+          rel="stylesheet"
+        />
+      </head>
+      <body className="bg-paper text-ink antialiased">
         {children}
       </body>
     </html>
