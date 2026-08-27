@@ -1,9 +1,12 @@
 import * as http from 'http';
+import { execSync } from 'child_process';
+import * as path from 'path';
+import * as fs from 'fs';
 import { VulnerabilityReport, SecurityPatchNode } from '../types/index.js';
 
 export interface VerifierConfig {
   port?: number;
-  mockTestSuitePass?: boolean;
+  sandboxDir?: string;
 }
 
 export class ImmunizationVerifier {
@@ -12,7 +15,7 @@ export class ImmunizationVerifier {
   constructor(config: VerifierConfig = {}) {
     this.config = {
       port: config.port || 8080,
-      mockTestSuitePass: config.mockTestSuitePass ?? false,
+      sandboxDir: config.sandboxDir,
     };
   }
 
@@ -20,30 +23,59 @@ export class ImmunizationVerifier {
     vulnerability: VulnerabilityReport,
     candidatePatch: SecurityPatchNode
   ): Promise<SecurityPatchNode> {
+    const startTime = Date.now();
     const port = this.config.port || 8080;
 
-    // Lock 1: Re-fire Red Agent exploit to assert blockage (Returns 400/403)
+    // Lock 1: Re-fire Red Agent exploit to assert blockage
     const exploitBlocked = await this.probeExploitBlockage(vulnerability, port);
 
-    // Lock 2: Dispatch Golden Legitimate Inputs to assert normal functionality (Returns 200)
+    // Lock 2: Dispatch Golden Legitimate Inputs to assert normal functionality
     const goldenPassed = await this.probeGoldenInputs(vulnerability, port);
 
-    // Lock 3: Run repository test suite to assert zero functional regressions
-    const testsPassed = this.config.mockTestSuitePass ?? true;
+    // Lock 3: Real test suite execution inside target repository/sandbox
+    const testResult = this.executeSandboxTestSuite(this.config.sandboxDir || path.dirname(vulnerability.vulnerableFilePath));
 
-    const allPassed = exploitBlocked && goldenPassed && testsPassed;
+    const allPassed = exploitBlocked && goldenPassed && testResult.exitCode === 0;
 
     return {
       ...candidatePatch,
       immunizationResults: {
         exploitBlocked,
         goldenInputsPreserved: goldenPassed,
-        unitTestsPassed: testsPassed,
-        testSuiteExitCode: testsPassed ? 0 : 1,
+        unitTestsPassed: testResult.exitCode === 0,
+        testSuiteExitCode: testResult.exitCode,
+        testSuiteOutput: testResult.output,
+        durationMs: Date.now() - startTime,
       },
       resultingCvssScore: allPassed ? 0.0 : vulnerability.cvssBaseScore,
       status: allPassed ? 'IMMUNIZED' : 'DEAD_END',
     };
+  }
+
+  private executeSandboxTestSuite(dir: string): { exitCode: number; output: string } {
+    try {
+      let targetDir = dir;
+      while (targetDir && !fs.existsSync(path.join(targetDir, 'package.json')) && targetDir !== path.dirname(targetDir)) {
+        targetDir = path.dirname(targetDir);
+      }
+
+      if (!fs.existsSync(path.join(targetDir, 'package.json'))) {
+        return { exitCode: 0, output: 'No test suite package.json found; zero regression baseline.' };
+      }
+
+      // Real test execution via npm test with 10s timeout
+      const output = execSync('npm test', {
+        cwd: targetDir,
+        timeout: 10000,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+
+      return { exitCode: 0, output: output || 'Test suite passed with Exit Code 0' };
+    } catch (err: unknown) {
+      const errorOutput = err instanceof Error ? err.message : String(err);
+      return { exitCode: 1, output: errorOutput };
+    }
   }
 
   private async probeExploitBlockage(vulnerability: VulnerabilityReport, port: number): Promise<boolean> {
@@ -68,7 +100,6 @@ export class ImmunizationVerifier {
           let body = '';
           res.on('data', chunk => (body += chunk));
           res.on('end', () => {
-            // Must return 400 or 403, and must NOT leak the proof signature
             const isBlocked = (res.statusCode === 400 || res.statusCode === 403) && !body.includes(spec.expectedProofSignature);
             resolve(isBlocked);
           });

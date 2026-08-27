@@ -5,4 +5,5 @@ export * from './blueteam/patcher.js';
 export * from './verifier/assert.js';
 export * from './supervisor/detector.js';
 export * from './hitl/gatekeeper.js';
+export * from './github/client.js';
 export * from './mcp/index.js';

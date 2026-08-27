@@ -29,19 +29,28 @@ describe('ZeroShield End-to-End Autonomous Pipeline', () => {
 
     assert.equal(patch.status, 'CANDIDATE');
     assert.match(patch.patchedCodeSnippet, /execFile/);
+    assert.match(patch.patchDigest, /^[a-f0-9]{64}$/);
 
     // 3. Triple-Lock Verification
-    const verifier = new ImmunizationVerifier({ mockTestSuitePass: true });
+    const verifier = new ImmunizationVerifier({ sandboxDir: fixtureDir });
     const verifiedPatch = await verifier.verifyPatch(vuln, patch);
 
     assert.equal(verifiedPatch.status, 'IMMUNIZED');
     assert.equal(verifiedPatch.resultingCvssScore, 0.0);
 
     // 4. HITL Approval Card
-    const gatekeeper = new HITLGatekeeper();
+    const gatekeeper = new HITLGatekeeper('production-test-e2e-secret-key-123');
     const reviewCard = gatekeeper.generateReviewCard(vuln, verifiedPatch);
 
     assert.equal(reviewCard.scoreDrop, 9.8);
-    assert.equal(gatekeeper.verifyApproval(verifiedPatch.id, reviewCard.approvalToken), true);
+    assert.equal(
+      gatekeeper.verifyApproval(
+        verifiedPatch.id,
+        verifiedPatch.patchDigest,
+        reviewCard.approvalToken,
+        reviewCard.expiresAt
+      ),
+      true
+    );
   });
 });
