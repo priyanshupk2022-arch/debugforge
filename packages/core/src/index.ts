@@ -1,5 +1,6 @@
 export * from './types/index.js';
 export * from './hunter/scanner.js';
+export * from './sandbox/lifecycle.js';
 export * from './redteam/exploit.js';
 export * from './blueteam/patcher.js';
 export * from './verifier/assert.js';

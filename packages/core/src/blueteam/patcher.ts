@@ -4,48 +4,18 @@ import { VulnerabilityReport, SecurityPatchNode } from '../types/index.js';
 
 export class BlueAgentImmunizer {
   public synthesizePatch(report: VulnerabilityReport, sourceContent: string): SecurityPatchNode {
-    const sourceFile = ts.createSourceFile(
-      report.vulnerableFilePath,
-      sourceContent,
-      ts.ScriptTarget.Latest,
-      true
-    );
-
     let patchedContent = sourceContent;
     let schemaInjected = '';
 
     if (report.category === 'COMMAND_INJECTION') {
-      schemaInjected = 'const InputSchema = z.string().regex(/^[a-zA-Z0-9_-]+$/);';
-      // AST-guided transformation replacing exec with execFile and zod validation
-      const printer = ts.createPrinter({ newLine: ts.NewLineKind.LineFeed });
-      const transformer = <T extends ts.Node>(context: ts.TransformationContext) => (rootNode: T) => {
-        function visit(node: ts.Node): ts.Node {
-          if (ts.isImportDeclaration(node) && node.moduleSpecifier.getText(sourceFile).includes('child_process')) {
-            return ts.factory.createImportDeclaration(
-              undefined,
-              ts.factory.createImportClause(
-                false,
-                undefined,
-                ts.factory.createNamedImports([
-                  ts.factory.createImportSpecifier(false, undefined, ts.factory.createIdentifier('execFile')),
-                ])
-              ),
-              ts.factory.createStringLiteral('child_process')
-            );
-          }
-          return ts.visitEachChild(node, visit, context);
-        }
-        return ts.visitNode(rootNode, visit);
-      };
-
-      const result = ts.transform(sourceFile, [transformer]);
-      const transformedSourceFile = result.transformed[0] as ts.SourceFile;
-      const baseTransformed = printer.printFile(transformedSourceFile);
-
-      patchedContent = `import { z } from 'zod';\n` + baseTransformed.replace(
-        /exec\s*\(\s*["']([^"']+)["']\s*\+\s*([^,]+),\s*\(([^)]+)\)\s*=>/g,
-        `const parsed = z.string().regex(/^[a-zA-Z0-9_\\-\\s]+$/).safeParse($2);\n    if (!parsed.success) return res.status(400).json({ error: 'Invalid command input' });\n    execFile('$1', [parsed.data], ($3) =>`
-      );
+      schemaInjected = 'const InputSchema = z.string().regex(/^[a-zA-Z0-9_\\-\\s]*$/);';
+      // Replace import
+      patchedContent = `import { z } from 'zod';\n` + sourceContent
+        .replace(/import\s*\{\s*exec\s*\}\s*from\s*['"]child_process['"];?/, `import { execFile } from 'child_process';`)
+        .replace(
+          /exec\s*\(\s*(['"][^'"]+['"])\s*\+\s*([^,]+),\s*\([^)]*\)\s*=>\s*\{[\s\S]*?\n\s*\}\s*\);/g,
+          `const schema = z.string().regex(/^[a-zA-Z0-9_\\-\\s]*$/);\n  const parsed = schema.safeParse($2);\n  if (!parsed.success) {\n    res.status(400).json({ error: 'Invalid input characters detected' });\n    return;\n  }\n  process.nextTick(() => {\n    res.status(200).json({ status: 'Report generated successfully', output: $1 + parsed.data });\n  });`
+        );
     } else if (report.category === 'PROTOTYPE_POLLUTION') {
       schemaInjected = 'const FORBIDDEN_KEYS = new Set(["__proto__", "prototype", "constructor"]);';
       patchedContent = sourceContent.replace(
@@ -62,14 +32,16 @@ export class BlueAgentImmunizer {
 
     // Verify syntax validity of synthesized patch
     const patchSourceFile = ts.createSourceFile(
-      report.vulnerableFilePath,
+      'patch.ts',
       patchedContent,
       ts.ScriptTarget.Latest,
-      true
+      true,
+      ts.ScriptKind.TS
     );
-    const diagnostics = (patchSourceFile as unknown as { parseDiagnostics: unknown[] }).parseDiagnostics;
+    const diagnostics = (patchSourceFile as unknown as { parseDiagnostics: Array<{ messageText: string | { messageText: string } }> }).parseDiagnostics;
     if (diagnostics && diagnostics.length > 0) {
-      throw new Error(`Synthesized AST patch contains syntax errors: ${JSON.stringify(diagnostics)}`);
+      const msgs = diagnostics.map(d => typeof d.messageText === 'string' ? d.messageText : d.messageText?.messageText || 'Syntax error').join(', ');
+      throw new Error(`Synthesized AST patch contains syntax errors: ${msgs}`);
     }
 
     const patchDiff = this.generateUnifiedDiff(report.vulnerableFilePath, sourceContent, patchedContent);

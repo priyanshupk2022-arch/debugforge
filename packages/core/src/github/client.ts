@@ -1,4 +1,5 @@
 import * as https from 'https';
+import { spawn } from 'child_process';
 import { SecurityPatchNode, VulnerabilityReport } from '../types/index.js';
 
 export interface GitHubConfig {
@@ -24,6 +25,31 @@ export class GitHubIntegrationClient {
     this.token = config.token || process.env.GITHUB_PERSONAL_ACCESS_TOKEN || process.env.GITHUB_TOKEN || '';
     this.repoOwner = config.repoOwner || 'priyanshupk2022-arch';
     this.repoName = config.repoName || 'zeroshield';
+  }
+
+  public async executeLocalGitBranchAndCommit(
+    workingDir: string,
+    branchName: string,
+    commitMessage: string
+  ): Promise<{ commitHash: string }> {
+    const runGit = (args: string[]) =>
+      new Promise<string>((resolve, reject) => {
+        const proc = spawn('git', args, { cwd: workingDir });
+        let out = '';
+        let err = '';
+        proc.stdout.on('data', d => (out += d.toString()));
+        proc.stderr.on('data', d => (err += d.toString()));
+        proc.on('close', code => {
+          if (code === 0) resolve(out.trim());
+          else reject(new Error(`Git command failed (${args.join(' ')}): ${err || out}`));
+        });
+      });
+
+    await runGit(['checkout', '-B', branchName]);
+    await runGit(['add', '-A']);
+    await runGit(['commit', '-m', commitMessage]);
+    const hash = await runGit(['rev-parse', '--short', 'HEAD']);
+    return { commitHash: hash };
   }
 
   public async createImmunizedPullRequest(
