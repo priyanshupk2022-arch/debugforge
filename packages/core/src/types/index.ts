@@ -18,6 +18,7 @@ export interface ExploitPayloadSpec {
   queryPayload?: Record<string, string>;
   headers?: Record<string, string>;
   expectedProofSignature: string;
+  observedProof?: string;
 }
 
 export interface GoldenValidInput {
@@ -31,18 +32,29 @@ export interface GoldenValidInput {
   expectedResponseSubstring: string;
 }
 
+export interface SourceToSinkEvidence {
+  sourceSymbol: string;
+  sinkSymbol: string;
+  taintedParameter: string;
+  frameworkContext: string;
+  tracePath: string[];
+}
+
 export interface VulnerabilityReport {
   id: string;
   category: VulnerabilityCategory;
   cwe: string;
   cvssBaseScore: number;
+  confidence: 'HIGH' | 'MEDIUM' | 'LOW';
   vulnerableFilePath: string;
   vulnerableLineNumber: number;
+  vulnerableColumnNumber: number;
   sinkIdentifier: string;
+  sourceToSinkEvidence: SourceToSinkEvidence;
   codeSnippet: string;
   exploitPayloadSpec: ExploitPayloadSpec;
   goldenValidInputs: GoldenValidInput[];
-  status: 'SUSPECTED' | 'EXPLOIT_CONFIRMED' | 'PATCH_VERIFIED_IMMUNE';
+  status: 'SUSPECTED' | 'EXPLOIT_CONFIRMED' | 'PATCH_VERIFIED_IMMUNE' | 'UNSUPPORTED_NEEDS_REVIEW';
 }
 
 export interface SecurityPatchNode {
@@ -54,12 +66,15 @@ export interface SecurityPatchNode {
   originalCodeSnippet: string;
   patchedCodeSnippet: string;
   patchDiff: string;
+  patchDigest: string;
   sanitizationSchema?: string;
   immunizationResults: {
     exploitBlocked: boolean;
     goldenInputsPreserved: boolean;
     unitTestsPassed: boolean;
     testSuiteExitCode: number;
+    testSuiteOutput: string;
+    durationMs: number;
   };
   resultingCvssScore: number;
   status: 'CANDIDATE' | 'IMMUNIZED' | 'DEAD_END';

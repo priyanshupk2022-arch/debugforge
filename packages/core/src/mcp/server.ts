@@ -1,3 +1,4 @@
+import * as path from 'path';
 import { VulnerabilityHunter } from '../hunter/scanner.js';
 import { RedAgentArena, ExploitExecutionResult } from '../redteam/exploit.js';
 import { BlueAgentImmunizer } from '../blueteam/patcher.js';
@@ -47,17 +48,38 @@ export class TrueForgeMcpServer {
   private redAgent: RedAgentArena;
   private blueAgent: BlueAgentImmunizer;
   private verifier: ImmunizationVerifier;
+  private workspaceAllowlist: Set<string>;
 
-  constructor(sessionStore?: ZeroShieldSessionStore) {
+  constructor(sessionStore?: ZeroShieldSessionStore, allowedWorkspaces: string[] = [process.cwd()]) {
     this.sessionStore = sessionStore || new ZeroShieldSessionStore({ inMemory: true });
     this.hunter = new VulnerabilityHunter();
     this.redAgent = new RedAgentArena();
     this.blueAgent = new BlueAgentImmunizer();
     this.verifier = new ImmunizationVerifier();
+    this.workspaceAllowlist = new Set(allowedWorkspaces.map(w => path.resolve(w).toLowerCase()));
   }
 
   public getSessionStore(): ZeroShieldSessionStore {
     return this.sessionStore;
+  }
+
+  public validateWorkspacePath(targetPath: string): string {
+    const canonical = path.resolve(targetPath);
+    const lowerCanonical = canonical.toLowerCase();
+    let isAllowed = false;
+
+    for (const allowed of this.workspaceAllowlist) {
+      if (lowerCanonical.startsWith(allowed)) {
+        isAllowed = true;
+        break;
+      }
+    }
+
+    if (!isAllowed) {
+      throw new Error(`SECURITY ACCESS DENIED: Path "${targetPath}" is outside allowed workspace boundaries.`);
+    }
+
+    return canonical;
   }
 
   public getToolDefinitions(): McpToolDefinition[] {
@@ -130,7 +152,7 @@ export class TrueForgeMcpServer {
       },
       {
         name: 'zeroshield_immunize_verify',
-        description: 'Runs the 3-Lock Immunization Verifier ensuring exploit is blocked (400/403), golden legitimate inputs are preserved (200), and test suite passes.',
+        description: 'Runs the 3-Lock Immunization Verifier ensuring exploit is blocked, golden legitimate inputs are preserved, and test suite passes.',
         inputSchema: {
           type: 'object',
           properties: {
@@ -145,10 +167,6 @@ export class TrueForgeMcpServer {
             port: {
               type: 'number',
               description: 'Target service port (default: 8080).',
-            },
-            mockTestSuitePass: {
-              type: 'boolean',
-              description: 'Flag to simulate test suite pass/fail state for CI evaluation.',
             },
             sessionId: {
               type: 'string',
@@ -165,12 +183,13 @@ export class TrueForgeMcpServer {
     try {
       switch (name) {
         case 'zeroshield_sast_scan': {
-          const targetDir = args.targetDir as string;
+          const rawTargetDir = args.targetDir as string;
           const sessionId = args.sessionId as string | undefined;
-          if (!targetDir) {
+          if (!rawTargetDir) {
             return { content: [{ type: 'text', text: 'Error: targetDir is required' }], isError: true };
           }
 
+          const targetDir = this.validateWorkspacePath(rawTargetDir);
           const reports = this.hunter.scanDirectory(targetDir);
 
           if (sessionId) {
@@ -205,7 +224,7 @@ export class TrueForgeMcpServer {
           const arena = (port === 8080 && useLocalRunner)
             ? this.redAgent
             : new RedAgentArena({ fallbackPort: port, useLocalRunner });
-          const exploitResult: ExploitExecutionResult = await arena.executeExploitProof(vulnerability);
+          const exploitResult: ExploitExecutionResult = await arena.executeExploitProof(vulnerability, port);
 
           if (sessionId) {
             this.sessionStore.recordAuditTrail({
@@ -264,16 +283,15 @@ export class TrueForgeMcpServer {
           const vulnerability = args.vulnerability as VulnerabilityReport;
           const candidatePatch = args.candidatePatch as SecurityPatchNode;
           const port = (args.port as number) || 8080;
-          const mockTestSuitePass = args.mockTestSuitePass !== undefined ? Boolean(args.mockTestSuitePass) : true;
           const sessionId = args.sessionId as string | undefined;
 
           if (!vulnerability || !candidatePatch) {
             return { content: [{ type: 'text', text: 'Error: vulnerability and candidatePatch are required' }], isError: true };
           }
 
-          const targetVerifier = (port === 8080 && mockTestSuitePass === false)
+          const targetVerifier = (port === 8080)
             ? this.verifier
-            : new ImmunizationVerifier({ port, mockTestSuitePass });
+            : new ImmunizationVerifier({ port });
           const verifiedPatch = await targetVerifier.verifyPatch(vulnerability, candidatePatch);
 
           if (sessionId) {

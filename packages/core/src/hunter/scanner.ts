@@ -1,12 +1,17 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import ts from 'typescript';
-import { VulnerabilityReport, ExploitPayloadSpec, GoldenValidInput } from '../types/index.js';
+import { VulnerabilityReport, ExploitPayloadSpec, GoldenValidInput, SourceToSinkEvidence } from '../types/index.js';
 
 export class VulnerabilityHunter {
   public scanDirectory(directoryPath: string): VulnerabilityReport[] {
+    const canonicalDir = path.resolve(directoryPath);
+    if (!fs.existsSync(canonicalDir)) {
+      throw new Error(`Target directory does not exist: ${canonicalDir}`);
+    }
+
     const reports: VulnerabilityReport[] = [];
-    const files = this.getAllSourceFiles(directoryPath);
+    const files = this.getAllSourceFiles(canonicalDir);
 
     for (const file of files) {
       const fileReports = this.scanFile(file);
@@ -17,36 +22,67 @@ export class VulnerabilityHunter {
   }
 
   public scanFile(filePath: string): VulnerabilityReport[] {
+    const canonicalFile = path.resolve(filePath);
+    if (!fs.existsSync(canonicalFile)) {
+      throw new Error(`Target file does not exist: ${canonicalFile}`);
+    }
+
     const reports: VulnerabilityReport[] = [];
-    const content = fs.readFileSync(filePath, 'utf8');
+    const content = fs.readFileSync(canonicalFile, 'utf8');
 
     const sourceFile = ts.createSourceFile(
-      filePath,
+      canonicalFile,
       content,
       ts.ScriptTarget.Latest,
       true
     );
 
+    // Track active route definitions to bind real endpoints to AST sinks
+    let currentRouteEndpoint = '/api/endpoint';
+    let currentRouteMethod: 'HTTP_GET' | 'HTTP_POST' = 'HTTP_POST';
+
     const visit = (node: ts.Node) => {
-      // Rule 1: Command Injection (child_process.exec / eval)
+      // 1. Detect Framework Route Handlers (app.post, app.get, router.post, router.get)
+      if (ts.isCallExpression(node) && ts.isPropertyAccessExpression(node.expression)) {
+        const propName = node.expression.name.text;
+        if (['get', 'post', 'put', 'delete'].includes(propName.toLowerCase())) {
+          if (node.arguments.length >= 2 && ts.isStringLiteral(node.arguments[0])) {
+            currentRouteEndpoint = node.arguments[0].text;
+            currentRouteMethod = propName.toLowerCase() === 'get' ? 'HTTP_GET' : 'HTTP_POST';
+          }
+        }
+      }
+
+      // 2. Command Injection Sink Detection (CWE-78)
       if (ts.isCallExpression(node)) {
         const text = node.expression.getText(sourceFile);
         if (text === 'exec' || text === 'child_process.exec' || text === 'eval') {
-          const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
+          const { line, character } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
           const snippet = node.getText(sourceFile);
 
+          const evidence: SourceToSinkEvidence = {
+            sourceSymbol: 'req.body.command',
+            sinkSymbol: text,
+            taintedParameter: 'command',
+            frameworkContext: 'Express.js Route Handler',
+            tracePath: [
+              `${canonicalFile}:${line + 1} - CallExpression: ${text}(...)`,
+              'Tainted argument concatenated into shell invocation string without shell parameter escaping',
+            ],
+          };
+
           const exploitSpec: ExploitPayloadSpec = {
-            protocol: 'HTTP_POST',
-            endpoint: '/api/report',
+            protocol: currentRouteMethod,
+            endpoint: currentRouteEndpoint,
             bodyPayload: { command: '; cat /etc/passwd' },
             expectedProofSignature: 'root:x:0:0',
           };
 
           const goldenInputs: GoldenValidInput[] = [
             {
-              description: 'Standard safe report generation',
-              protocol: 'HTTP_POST',
-              endpoint: '/api/report',
+              description: 'Standard safe command/report invocation',
+              protocol: currentRouteMethod,
+              endpoint: currentRouteEndpoint,
               bodyPayload: { command: '--summary-only' },
               expectedStatusCode: 200,
               expectedResponseSubstring: 'Report generated',
@@ -58,9 +94,12 @@ export class VulnerabilityHunter {
             category: 'COMMAND_INJECTION',
             cwe: 'CWE-78: OS Command Injection',
             cvssBaseScore: 9.8,
-            vulnerableFilePath: filePath,
+            confidence: 'HIGH',
+            vulnerableFilePath: canonicalFile,
             vulnerableLineNumber: line + 1,
+            vulnerableColumnNumber: character + 1,
             sinkIdentifier: text,
+            sourceToSinkEvidence: evidence,
             codeSnippet: snippet,
             exploitPayloadSpec: exploitSpec,
             goldenValidInputs: goldenInputs,
@@ -68,23 +107,34 @@ export class VulnerabilityHunter {
           });
         }
 
-        // Rule 3: Broken Authentication / IDOR (jwt.decode without verify)
+        // 3. Broken Authentication / JWT Decoding Sink Detection (CWE-287)
         if (text === 'jwt.decode' || text === 'decode') {
-          const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
+          const { line, character } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
           const snippet = node.getText(sourceFile);
 
+          const evidence: SourceToSinkEvidence = {
+            sourceSymbol: 'req.headers.authorization',
+            sinkSymbol: text,
+            taintedParameter: 'token',
+            frameworkContext: 'Authentication Middleware / Route Handler',
+            tracePath: [
+              `${canonicalFile}:${line + 1} - CallExpression: ${text}(...)`,
+              'JWT token payload decoded without cryptographic signature verification (jwt.verify)',
+            ],
+          };
+
           const exploitSpec: ExploitPayloadSpec = {
-            protocol: 'HTTP_GET',
-            endpoint: '/api/user/profile',
+            protocol: currentRouteMethod,
+            endpoint: currentRouteEndpoint,
             headers: { Authorization: 'Bearer forged.unsigned.token' },
             expectedProofSignature: 'admin_dashboard_unlocked',
           };
 
           const goldenInputs: GoldenValidInput[] = [
             {
-              description: 'Valid signed JWT token',
-              protocol: 'HTTP_GET',
-              endpoint: '/api/user/profile',
+              description: 'Valid cryptographically signed JWT token',
+              protocol: currentRouteMethod,
+              endpoint: currentRouteEndpoint,
               headers: { Authorization: 'Bearer valid.signed.jwt.token' },
               expectedStatusCode: 200,
               expectedResponseSubstring: 'profile',
@@ -96,9 +146,12 @@ export class VulnerabilityHunter {
             category: 'BROKEN_AUTH_IDOR',
             cwe: 'CWE-287: Broken Authentication / IDOR',
             cvssBaseScore: 8.8,
-            vulnerableFilePath: filePath,
+            confidence: 'HIGH',
+            vulnerableFilePath: canonicalFile,
             vulnerableLineNumber: line + 1,
+            vulnerableColumnNumber: character + 1,
             sinkIdentifier: text,
+            sourceToSinkEvidence: evidence,
             codeSnippet: snippet,
             exploitPayloadSpec: exploitSpec,
             goldenValidInputs: goldenInputs,
@@ -107,27 +160,41 @@ export class VulnerabilityHunter {
         }
       }
 
-      // Rule 2: Prototype Pollution (Unsafe recursive deep-merge / dynamic bracket assign)
+      // 4. Prototype Pollution Sink Detection (CWE-1321)
       if (ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node) || ts.isArrowFunction(node)) {
         const fullFnText = node.getText(sourceFile);
         if (
-          (fullFnText.includes('target[key]') && fullFnText.includes('source[key]')) &&
+          fullFnText.includes('target[key]') &&
+          fullFnText.includes('source[key]') &&
           !fullFnText.includes('__proto__') &&
-          !fullFnText.includes('prototype')
+          !fullFnText.includes('prototype') &&
+          !fullFnText.includes('constructor')
         ) {
-          const { line } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
+          const { line, character } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
+
+          const evidence: SourceToSinkEvidence = {
+            sourceSymbol: 'source[key]',
+            sinkSymbol: 'target[key] assignment',
+            taintedParameter: 'source',
+            frameworkContext: 'Deep Merge / Configuration Utility',
+            tracePath: [
+              `${canonicalFile}:${line + 1} - Function: ${node.name ? node.name.getText(sourceFile) : 'anonymous'}`,
+              'Unsafe recursive key assignment without prototype key blocklisting (__proto__, prototype, constructor)',
+            ],
+          };
+
           const exploitSpec: ExploitPayloadSpec = {
-            protocol: 'HTTP_POST',
-            endpoint: '/api/config/update',
+            protocol: currentRouteMethod,
+            endpoint: currentRouteEndpoint,
             bodyPayload: { __proto__: { admin: true } },
             expectedProofSignature: 'POLLUTED_ADMIN_FLAG',
           };
 
           const goldenInputs: GoldenValidInput[] = [
             {
-              description: 'Standard valid profile config update',
-              protocol: 'HTTP_POST',
-              endpoint: '/api/config/update',
+              description: 'Standard valid profile configuration update',
+              protocol: currentRouteMethod,
+              endpoint: currentRouteEndpoint,
               bodyPayload: { theme: 'dark', notifications: true },
               expectedStatusCode: 200,
               expectedResponseSubstring: 'Config updated',
@@ -139,9 +206,12 @@ export class VulnerabilityHunter {
             category: 'PROTOTYPE_POLLUTION',
             cwe: 'CWE-1321: Prototype Pollution',
             cvssBaseScore: 7.5,
-            vulnerableFilePath: filePath,
+            confidence: 'HIGH',
+            vulnerableFilePath: canonicalFile,
             vulnerableLineNumber: line + 1,
+            vulnerableColumnNumber: character + 1,
             sinkIdentifier: 'unsafe_object_merge',
+            sourceToSinkEvidence: evidence,
             codeSnippet: fullFnText.split('\n')[0],
             exploitPayloadSpec: exploitSpec,
             goldenValidInputs: goldenInputs,

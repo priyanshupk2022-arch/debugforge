@@ -5,16 +5,25 @@ import { VulnerabilityReport, SecurityPatchNode } from '../src/types/index.js';
 
 describe('HITLGatekeeper (Cryptographic Human-in-the-Loop Gate)', () => {
   it('should generate HMAC-signed review card and verify human approval token', () => {
-    const gatekeeper = new HITLGatekeeper('test-secret-key-123');
+    const gatekeeper = new HITLGatekeeper('production-super-secret-key-12345');
 
     const mockVuln: VulnerabilityReport = {
       id: 'v1',
       category: 'COMMAND_INJECTION',
       cwe: 'CWE-78: OS Command Injection',
       cvssBaseScore: 9.8,
+      confidence: 'HIGH',
       vulnerableFilePath: 'src/report.ts',
       vulnerableLineNumber: 10,
+      vulnerableColumnNumber: 5,
       sinkIdentifier: 'exec',
+      sourceToSinkEvidence: {
+        sourceSymbol: 'req.body.command',
+        sinkSymbol: 'exec',
+        taintedParameter: 'command',
+        frameworkContext: 'Express.js',
+        tracePath: ['line 10'],
+      },
       codeSnippet: 'exec(cmd)',
       exploitPayloadSpec: { protocol: 'HTTP_POST', endpoint: '/api/report', expectedProofSignature: 'root:x:0:0' },
       goldenValidInputs: [],
@@ -30,7 +39,15 @@ describe('HITLGatekeeper (Cryptographic Human-in-the-Loop Gate)', () => {
       originalCodeSnippet: 'exec(cmd)',
       patchedCodeSnippet: 'execFile(cmd)',
       patchDiff: '+ execFile(cmd)',
-      immunizationResults: { exploitBlocked: true, goldenInputsPreserved: true, unitTestsPassed: true, testSuiteExitCode: 0 },
+      patchDigest: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+      immunizationResults: {
+        exploitBlocked: true,
+        goldenInputsPreserved: true,
+        unitTestsPassed: true,
+        testSuiteExitCode: 0,
+        testSuiteOutput: 'Pass',
+        durationMs: 120,
+      },
       resultingCvssScore: 0.0,
       status: 'IMMUNIZED',
     };
@@ -43,11 +60,21 @@ describe('HITLGatekeeper (Cryptographic Human-in-the-Loop Gate)', () => {
     assert.match(reviewCard.approvalToken, /^[a-f0-9]{64}$/);
 
     // Valid approval verification
-    const isValid = gatekeeper.verifyApproval(reviewCard.patchId, reviewCard.approvalToken);
+    const isValid = gatekeeper.verifyApproval(
+      reviewCard.patchId,
+      reviewCard.patchDigest,
+      reviewCard.approvalToken,
+      reviewCard.expiresAt
+    );
     assert.equal(isValid, true);
 
-    // Tampered token rejection
-    const isInvalid = gatekeeper.verifyApproval(reviewCard.patchId, 'forged-tampered-token');
-    assert.equal(isInvalid, false);
+    // Replay attack prevention: Second verification of same token must fail
+    const isReplayBlocked = gatekeeper.verifyApproval(
+      reviewCard.patchId,
+      reviewCard.patchDigest,
+      reviewCard.approvalToken,
+      reviewCard.expiresAt
+    );
+    assert.equal(isReplayBlocked, false);
   });
 });

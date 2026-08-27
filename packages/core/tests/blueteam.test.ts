@@ -10,9 +10,18 @@ describe('BlueAgentImmunizer (NVIDIA AVO Patch Synthesizer)', () => {
       category: 'COMMAND_INJECTION',
       cwe: 'CWE-78: OS Command Injection',
       cvssBaseScore: 9.8,
+      confidence: 'HIGH',
       vulnerableFilePath: 'src/report.ts',
       vulnerableLineNumber: 12,
+      vulnerableColumnNumber: 5,
       sinkIdentifier: 'exec',
+      sourceToSinkEvidence: {
+        sourceSymbol: 'req.body.command',
+        sinkSymbol: 'exec',
+        taintedParameter: 'command',
+        frameworkContext: 'Express.js',
+        tracePath: ['line 12'],
+      },
       codeSnippet: 'exec("generate.sh " + req.body.command)',
       exploitPayloadSpec: {
         protocol: 'HTTP_POST',
@@ -39,6 +48,7 @@ describe('BlueAgentImmunizer (NVIDIA AVO Patch Synthesizer)', () => {
     assert.match(patchNode.patchedCodeSnippet, /execFile/);
     assert.match(patchNode.patchedCodeSnippet, /z\.string\(\)/);
     assert.match(patchNode.patchDiff, /\+.*execFile/);
+    assert.match(patchNode.patchDigest, /^[a-f0-9]{64}$/);
   });
 
   it('should synthesize secure AST patch for Prototype Pollution using key validation', () => {
@@ -47,9 +57,18 @@ describe('BlueAgentImmunizer (NVIDIA AVO Patch Synthesizer)', () => {
       category: 'PROTOTYPE_POLLUTION',
       cwe: 'CWE-1321: Prototype Pollution',
       cvssBaseScore: 7.5,
+      confidence: 'HIGH',
       vulnerableFilePath: 'src/config.ts',
       vulnerableLineNumber: 8,
+      vulnerableColumnNumber: 5,
       sinkIdentifier: 'unsafe_object_merge',
+      sourceToSinkEvidence: {
+        sourceSymbol: 'source[key]',
+        sinkSymbol: 'target[key]',
+        taintedParameter: 'source',
+        frameworkContext: 'Config Loader',
+        tracePath: ['line 8'],
+      },
       codeSnippet: 'target[key] = source[key]',
       exploitPayloadSpec: {
         protocol: 'HTTP_POST',

@@ -1,4 +1,4 @@
-name: ZeroShield CI & Qodo Code Quality Review
+name: ZeroShield CI Production Gate
 
 on:
   push:
@@ -16,15 +16,15 @@ permissions:
   statuses: write
 
 jobs:
-  build-and-test:
-    name: Build & Mechanical 4-Tier Test Gate
+  production-gate:
+    name: Full Production Build, Anti-Cheat, & 4-Tier Test Gates
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # pinned v4.1.1
 
       - name: Setup Node.js v22
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@60edb5dd545a775178f525247059d6172fe9ac34 # pinned v4.0.2
         with:
           node-version: 22
           cache: 'npm'
@@ -32,20 +32,28 @@ jobs:
       - name: Install Dependencies
         run: npm ci || npm install
 
-      - name: Strict TypeScript Compilation
+      - name: Strict Anti-Cheat AST Stub Audit
+        run: npx ts-node scripts/verify-no-stubs.ts
+
+      - name: Strict TypeScript Monorepo Build
         run: npm run build
 
-      - name: Execute 4-Tier Test Gates
+      - name: Production Web Dashboard Build
+        run: npm --prefix packages/web run build
+
+      - name: Execute Full 4-Tier Mechanical Test Suite
+        env:
+          HITL_SECRET: "production-ci-secret-gate-12345"
         run: npm test
 
   qodo-agentic-review:
     name: Qodo Agentic Code Quality Review
-    needs: build-and-test
+    needs: production-gate
     if: github.event_name == 'pull_request' || (github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '/agentic_review'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # pinned v4.1.1
         with:
           fetch-depth: 0
 

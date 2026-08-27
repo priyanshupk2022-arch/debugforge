@@ -32,6 +32,7 @@ describe('VulnerabilityHunter (AST Sink Scanner)', () => {
     assert.equal(reports[0].cwe, 'CWE-78: OS Command Injection');
     assert.equal(reports[0].cvssBaseScore, 9.8);
     assert.equal(reports[0].sinkIdentifier, 'exec');
+    assert.equal(reports[0].exploitPayloadSpec.endpoint, '/api/report');
     assert.match(reports[0].codeSnippet, /exec\(/);
 
     // Cleanup
