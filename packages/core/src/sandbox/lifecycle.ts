@@ -284,21 +284,17 @@ export class DaytonaRemoteSandbox implements ISandboxInstance {
   public readonly type = 'DAYTONA_CONTAINER' as const;
   public readonly workDir: string;
   public readonly port: number;
-  private daytonaClient: Daytona;
-  private sandbox: Sandbox | null = null;
+  private sandbox: Sandbox;
 
-  constructor(sandboxId: string, daytonaClient: Daytona, port = 8080) {
-    this.id = sandboxId;
-    this.daytonaClient = daytonaClient;
+  constructor(sandbox: Sandbox, port = 8080) {
+    this.sandbox = sandbox;
+    this.id = sandbox.id;
     this.port = port;
     this.workDir = '/workspace';
   }
 
   public async initWorkspace(sourceDir: string): Promise<void> {
     const src = findProjectRoot(sourceDir);
-    this.sandbox = await this.daytonaClient.create({
-      language: 'typescript',
-    });
     await this.sandbox.waitUntilStarted(60);
 
     // Upload files into remote Daytona sandbox container
@@ -314,7 +310,6 @@ export class DaytonaRemoteSandbox implements ISandboxInstance {
   }
 
   public async startService(entryRelativePath: string, portEnvName = 'PORT'): Promise<void> {
-    if (!this.sandbox) throw new Error('Daytona sandbox not initialized.');
     await this.sandbox.process.executeCommand(
       `nohup npx ts-node ${entryRelativePath} > /tmp/server.log 2>&1 &`,
       '/workspace',
@@ -327,7 +322,6 @@ export class DaytonaRemoteSandbox implements ISandboxInstance {
   }
 
   public async stopService(): Promise<void> {
-    if (!this.sandbox) return;
     await this.sandbox.process.executeCommand(`pkill -f ts-node || true`, '/workspace');
   }
 
@@ -337,18 +331,15 @@ export class DaytonaRemoteSandbox implements ISandboxInstance {
   }
 
   public async writeFile(relativeFilePath: string, content: string): Promise<void> {
-    if (!this.sandbox) throw new Error('Daytona sandbox not initialized.');
     await this.sandbox.fs.uploadFile(Buffer.from(content, 'utf8'), path.posix.join('/workspace', relativeFilePath));
   }
 
   public async readFile(relativeFilePath: string): Promise<string> {
-    if (!this.sandbox) throw new Error('Daytona sandbox not initialized.');
     const buf = await this.sandbox.fs.downloadFile(path.posix.join('/workspace', relativeFilePath));
     return buf.toString('utf8');
   }
 
   public async executeCommand(command: string, timeoutSec = 30): Promise<SandboxExecutionResult> {
-    if (!this.sandbox) throw new Error('Daytona sandbox not initialized.');
     const start = Date.now();
     const res = await this.sandbox.process.executeCommand(command, '/workspace', undefined, timeoutSec);
     return {
@@ -360,7 +351,6 @@ export class DaytonaRemoteSandbox implements ISandboxInstance {
   }
 
   public async waitForPortReady(timeoutMs = 15000): Promise<boolean> {
-    if (!this.sandbox) return false;
     const start = Date.now();
     while (Date.now() - start < timeoutMs) {
       try {
@@ -388,7 +378,6 @@ export class DaytonaRemoteSandbox implements ISandboxInstance {
     bodyPayload?: Record<string, unknown>;
     timeoutMs?: number;
   }): Promise<{ statusCode: number; body: string; headers: http.IncomingHttpHeaders }> {
-    if (!this.sandbox) throw new Error('Daytona sandbox not initialized.');
     const preview = await this.sandbox.getPreviewLink(this.port);
     const targetUrl = new URL(options.path, preview.url);
 
@@ -417,10 +406,7 @@ export class DaytonaRemoteSandbox implements ISandboxInstance {
   }
 
   public async destroy(): Promise<void> {
-    if (this.sandbox) {
-      await this.sandbox.delete(30, true);
-      this.sandbox = null;
-    }
+    await this.sandbox.delete(30, true);
   }
 
   private scanLocalFiles(dir: string): string[] {
@@ -453,8 +439,9 @@ export class SandboxFactory {
         apiKey: daytonaApiKey,
         serverUrl: process.env.DAYTONA_SERVER_URL,
       });
+      // Exactly ONE Daytona sandbox created per lifecycle
       const remoteInstance = await daytona.create({ language: 'typescript' });
-      const sandbox = new DaytonaRemoteSandbox(remoteInstance.id, daytona, port);
+      const sandbox = new DaytonaRemoteSandbox(remoteInstance, port);
       await sandbox.initWorkspace(options.sourceDir);
       return sandbox;
     }

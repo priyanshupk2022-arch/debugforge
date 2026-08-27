@@ -22,7 +22,7 @@ export class HITLGatekeeper {
   private approvalRegistry: Map<string, { used: boolean; expiresAt: number; patchDigest: string }> = new Map();
 
   constructor(secretKey?: string) {
-    const configuredKey = secretKey || process.env.HITL_SECRET;
+    const configuredKey = secretKey !== undefined ? secretKey : process.env.HITL_SECRET;
     if (!configuredKey || configuredKey.trim().length < 16) {
       throw new Error(
         'CRITICAL HITL SECURITY FAILURE: HITL_SECRET environment variable is missing or shorter than 16 characters. Production gates fail closed.'

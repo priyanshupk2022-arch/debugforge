@@ -32,6 +32,15 @@ jobs:
           node-version: 22
           cache: 'npm'
 
+      - name: Verify Mandatory HITL Test Secret Present (Fail-Closed Gate)
+        env:
+          HITL_SECRET: ${{ secrets.HITL_TEST_SECRET }}
+        run: |
+          if [ -z "$HITL_SECRET" ]; then
+            echo "::error::CRITICAL SECURITY FAILURE: HITL_TEST_SECRET GitHub Secret is not configured. CI fails closed."
+            exit 1
+          fi
+
       - name: Install Monorepo Dependencies
         run: npm ci || npm install
 
@@ -54,12 +63,12 @@ jobs:
 
       - name: Execute Full Core Test Suite & Adversarial Security Attacks
         env:
-          HITL_SECRET: ${{ secrets.HITL_TEST_SECRET || 'zeroshield-ci-fail-closed-key-54321' }}
+          HITL_SECRET: ${{ secrets.HITL_TEST_SECRET }}
         run: npm test
 
       - name: Execute Machine-Verifiable Isolated Sandbox E2E Verification
         env:
-          HITL_SECRET: ${{ secrets.HITL_TEST_SECRET || 'zeroshield-ci-fail-closed-key-54321' }}
+          HITL_SECRET: ${{ secrets.HITL_TEST_SECRET }}
         run: node --test tests/e2e/**/*.test.ts
 
   qodo-agentic-review:
