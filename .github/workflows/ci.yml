@@ -35,8 +35,8 @@ jobs:
       - name: Install Monorepo Dependencies
         run: npm ci || npm install
 
-      - name: Dependency Vulnerability Audit Gate
-        run: npm audit --audit-level=high || true
+      - name: Dependency Vulnerability Audit Gate (Fail Closed on High/Critical)
+        run: npm audit --audit-level=high
 
       - name: Secret Scanning Gate
         run: |
@@ -54,12 +54,12 @@ jobs:
 
       - name: Execute Full Core Test Suite & Adversarial Security Attacks
         env:
-          HITL_SECRET: "production-ci-secret-gate-12345"
+          HITL_SECRET: ${{ secrets.HITL_TEST_SECRET || 'zeroshield-ci-fail-closed-key-54321' }}
         run: npm test
 
       - name: Execute Machine-Verifiable Isolated Sandbox E2E Verification
         env:
-          HITL_SECRET: "production-ci-secret-gate-12345"
+          HITL_SECRET: ${{ secrets.HITL_TEST_SECRET || 'zeroshield-ci-fail-closed-key-54321' }}
         run: node --test tests/e2e/**/*.test.ts
 
   qodo-agentic-review:
@@ -78,7 +78,7 @@ jobs:
           fetch-depth: 0
 
       - name: Qodo PR Agentic Review Action
-        uses: Codium-ai/pr-agent@v0.22.0
+        uses: Codium-ai/pr-agent@1242337d1cf752c4b81b5ffdbf37b122aa173255 # pinned immutable commit sha
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           OPENAI_KEY: ${{ secrets.OPENAI_API_KEY || secrets.GEMINI_API_KEY }}

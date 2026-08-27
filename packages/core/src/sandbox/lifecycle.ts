@@ -14,7 +14,7 @@ export interface SandboxExecutionResult {
 
 export interface ISandboxInstance {
   readonly id: string;
-  readonly type: 'DAYTONA_CONTAINER' | 'ISOLATED_CONTAINER_PROCESS';
+  readonly type: 'DAYTONA_CONTAINER' | 'DOCKER_CONTAINER' | 'ISOLATED_CONTAINER_PROCESS';
   readonly workDir: string;
   readonly port: number;
 
@@ -85,8 +85,13 @@ export class LocalIsolatedSandbox implements ISandboxInstance {
       throw new Error(`Target entry file not found in sandbox: ${fullEntry}`);
     }
 
-    // Isolate process in dedicated child process with explicit environment boundary
-    this.runningProcess = spawn('npx', ['ts-node', '--esm', entryRelativePath], {
+    const isWin = process.platform === 'win32';
+    const binary = isWin ? 'cmd.exe' : 'npx';
+    const args = isWin
+      ? ['/c', 'npx', 'ts-node', '--esm', entryRelativePath]
+      : ['ts-node', '--esm', entryRelativePath];
+
+    this.runningProcess = spawn(binary, args, {
       cwd: this.workDir,
       env: {
         ...process.env,
@@ -94,7 +99,7 @@ export class LocalIsolatedSandbox implements ISandboxInstance {
         NODE_ENV: 'sandbox_isolated',
       },
       stdio: ['ignore', 'pipe', 'pipe'],
-      shell: true,
+      shell: false,
       windowsHide: true,
     });
 
@@ -145,10 +150,14 @@ export class LocalIsolatedSandbox implements ISandboxInstance {
 
   public async executeCommand(command: string, timeoutSec = 20): Promise<SandboxExecutionResult> {
     const start = Date.now();
+    const isWin = process.platform === 'win32';
+    const binary = isWin ? 'cmd.exe' : '/bin/sh';
+    const args = isWin ? ['/c', command] : ['-c', command];
+
     return new Promise((resolve) => {
-      const child = spawn(command, {
+      const child = spawn(binary, args, {
         cwd: this.workDir,
-        shell: true,
+        shell: false,
         env: {
           ...process.env,
           PORT: this.port.toString(),
@@ -311,7 +320,10 @@ export class DaytonaRemoteSandbox implements ISandboxInstance {
       '/workspace',
       { [portEnvName]: this.port.toString() }
     );
-    await new Promise(r => setTimeout(r, 2000));
+    const ready = await this.waitForPortReady(15000);
+    if (!ready) {
+      throw new Error(`Daytona sandbox service failed to start and respond on preview port ${this.port}.`);
+    }
   }
 
   public async stopService(): Promise<void> {
@@ -347,8 +359,26 @@ export class DaytonaRemoteSandbox implements ISandboxInstance {
     };
   }
 
-  public async waitForPortReady(_timeoutMs = 6000): Promise<boolean> {
-    return true;
+  public async waitForPortReady(timeoutMs = 15000): Promise<boolean> {
+    if (!this.sandbox) return false;
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      try {
+        const preview = await this.sandbox.getPreviewLink(this.port);
+        const res = await fetch(preview.url, {
+          method: 'GET',
+          headers: preview.token ? { 'X-Daytona-Token': preview.token } : {},
+          signal: AbortSignal.timeout(1000),
+        });
+        if (res.status >= 200 && res.status < 600) {
+          return true;
+        }
+      } catch {
+        // Port not yet listening or link initializing
+      }
+      await new Promise(r => setTimeout(r, 500));
+    }
+    return false;
   }
 
   public async dispatchHttp(options: {
@@ -423,7 +453,8 @@ export class SandboxFactory {
         apiKey: daytonaApiKey,
         serverUrl: process.env.DAYTONA_SERVER_URL,
       });
-      const sandbox = new DaytonaRemoteSandbox(`daytona_sbx_${Date.now().toString(36)}`, daytona, port);
+      const remoteInstance = await daytona.create({ language: 'typescript' });
+      const sandbox = new DaytonaRemoteSandbox(remoteInstance.id, daytona, port);
       await sandbox.initWorkspace(options.sourceDir);
       return sandbox;
     }
