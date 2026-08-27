@@ -69,7 +69,7 @@ export class TrueForgeMcpServer {
     let isAllowed = false;
 
     for (const allowed of this.workspaceAllowlist) {
-      if (lowerCanonical.startsWith(allowed)) {
+      if (lowerCanonical === allowed || lowerCanonical.startsWith(allowed + path.sep)) {
         isAllowed = true;
         break;
       }

@@ -50,6 +50,40 @@ export function findProjectRoot(startPath: string): string {
   return path.resolve(startPath);
 }
 
+/**
+ * Sanitizes environment variables to prevent host secrets
+ * (GITHUB_TOKEN, DAYTONA_API_KEY, HITL_SECRET, etc.) from leaking into untrusted target processes.
+ */
+export function getSanitizedSandboxEnv(port: number, portEnvName = 'PORT'): Record<string, string> {
+  const allowedKeys = [
+    'PATH',
+    'Path',
+    'SYSTEMROOT',
+    'SystemRoot',
+    'TEMP',
+    'TMP',
+    'HOMEPATH',
+    'USERPROFILE',
+    'APPDATA',
+    'LOCALAPPDATA',
+    'COMSPEC',
+    'SHELL',
+    'TERM',
+  ];
+  const cleanEnv: Record<string, string> = {
+    NODE_ENV: 'sandbox_isolated',
+    [portEnvName]: port.toString(),
+    PORT: port.toString(),
+    CI: 'true',
+  };
+  for (const key of allowedKeys) {
+    if (process.env[key]) {
+      cleanEnv[key] = process.env[key]!;
+    }
+  }
+  return cleanEnv;
+}
+
 export class LocalIsolatedSandbox implements ISandboxInstance {
   public readonly id: string;
   public readonly type = 'ISOLATED_CONTAINER_PROCESS' as const;
@@ -61,6 +95,15 @@ export class LocalIsolatedSandbox implements ISandboxInstance {
     this.id = sandboxId;
     this.workDir = path.resolve(isolatedWorkDir);
     this.port = port;
+  }
+
+  private resolveSafePath(relativeFilePath: string): string {
+    const canonicalBase = path.resolve(this.workDir);
+    const targetPath = path.resolve(canonicalBase, relativeFilePath);
+    if (!targetPath.startsWith(canonicalBase + path.sep) && targetPath !== canonicalBase) {
+      throw new Error(`SECURITY ACCESS DENIED: Path traversal detected outside sandbox workspace boundary: ${relativeFilePath}`);
+    }
+    return targetPath;
   }
 
   public async initWorkspace(sourceDir: string): Promise<void> {
@@ -80,7 +123,7 @@ export class LocalIsolatedSandbox implements ISandboxInstance {
       await this.stopService();
     }
 
-    const fullEntry = path.join(this.workDir, entryRelativePath);
+    const fullEntry = this.resolveSafePath(entryRelativePath);
     if (!fs.existsSync(fullEntry)) {
       throw new Error(`Target entry file not found in sandbox: ${fullEntry}`);
     }
@@ -91,13 +134,10 @@ export class LocalIsolatedSandbox implements ISandboxInstance {
       ? ['/c', 'npx', 'ts-node', '--esm', entryRelativePath]
       : ['ts-node', '--esm', entryRelativePath];
 
+    // Strictly sanitized environment: zero host credentials passed
     this.runningProcess = spawn(binary, args, {
       cwd: this.workDir,
-      env: {
-        ...process.env,
-        [portEnvName]: this.port.toString(),
-        NODE_ENV: 'sandbox_isolated',
-      },
+      env: getSanitizedSandboxEnv(this.port, portEnvName),
       stdio: ['ignore', 'pipe', 'pipe'],
       shell: false,
       windowsHide: true,
@@ -135,13 +175,13 @@ export class LocalIsolatedSandbox implements ISandboxInstance {
   }
 
   public async writeFile(relativeFilePath: string, content: string): Promise<void> {
-    const targetFile = path.join(this.workDir, relativeFilePath);
+    const targetFile = this.resolveSafePath(relativeFilePath);
     fs.mkdirSync(path.dirname(targetFile), { recursive: true });
     fs.writeFileSync(targetFile, content, 'utf8');
   }
 
   public async readFile(relativeFilePath: string): Promise<string> {
-    const targetFile = path.join(this.workDir, relativeFilePath);
+    const targetFile = this.resolveSafePath(relativeFilePath);
     if (!fs.existsSync(targetFile)) {
       throw new Error(`File not found in sandbox: ${targetFile}`);
     }
@@ -158,10 +198,7 @@ export class LocalIsolatedSandbox implements ISandboxInstance {
       const child = spawn(binary, args, {
         cwd: this.workDir,
         shell: false,
-        env: {
-          ...process.env,
-          PORT: this.port.toString(),
-        },
+        env: getSanitizedSandboxEnv(this.port),
       });
 
       let stdout = '';
@@ -274,6 +311,193 @@ export class LocalIsolatedSandbox implements ISandboxInstance {
         fs.rmSync(this.workDir, { recursive: true, force: true });
       } catch {
         // ignore file lock cleanup delays
+      }
+    }
+  }
+}
+
+export class DockerContainerSandbox implements ISandboxInstance {
+  public readonly id: string;
+  public readonly type = 'DOCKER_CONTAINER' as const;
+  public readonly workDir: string;
+  public readonly port: number;
+  private containerName: string;
+
+  constructor(sandboxId: string, isolatedWorkDir: string, port: number) {
+    this.id = sandboxId;
+    this.workDir = path.resolve(isolatedWorkDir);
+    this.port = port;
+    this.containerName = `zeroshield_${sandboxId.replace(/[^a-zA-Z0-9_]/g, '_')}`;
+  }
+
+  private resolveSafePath(relativeFilePath: string): string {
+    const canonicalBase = path.resolve(this.workDir);
+    const targetPath = path.resolve(canonicalBase, relativeFilePath);
+    if (!targetPath.startsWith(canonicalBase + path.sep) && targetPath !== canonicalBase) {
+      throw new Error(`SECURITY ACCESS DENIED: Path traversal detected outside sandbox workspace boundary: ${relativeFilePath}`);
+    }
+    return targetPath;
+  }
+
+  public async initWorkspace(sourceDir: string): Promise<void> {
+    const src = findProjectRoot(sourceDir);
+    if (fs.existsSync(this.workDir)) {
+      fs.rmSync(this.workDir, { recursive: true, force: true });
+    }
+    fs.mkdirSync(this.workDir, { recursive: true });
+    fs.cpSync(src, this.workDir, { recursive: true });
+  }
+
+  public async startService(entryRelativePath: string, portEnvName = 'PORT'): Promise<void> {
+    await this.stopService();
+    const posixPath = entryRelativePath.replace(/\\/g, '/');
+    const normalizedWorkDir = this.workDir.replace(/\\/g, '/');
+
+    // Run container with dropped capabilities, memory & PID limits, no-new-privileges
+    execSync(
+      `docker run -d --name ${this.containerName} -p 127.0.0.1:${this.port}:${this.port} -v "${normalizedWorkDir}:/workspace" -w /workspace --cap-drop=ALL --security-opt=no-new-privileges:true --pids-limit=100 --memory=512m --cpus=1.0 -e ${portEnvName}=${this.port} -e NODE_ENV=sandbox_isolated node:22-alpine npx ts-node --esm ${posixPath}`,
+      { stdio: 'ignore' }
+    );
+
+    const isReady = await this.waitForPortReady(10000);
+    if (!isReady) {
+      await this.stopService();
+      throw new Error(`Docker container service failed to bind to port ${this.port} within readiness timeout.`);
+    }
+  }
+
+  public async stopService(): Promise<void> {
+    try {
+      execSync(`docker rm -f ${this.containerName}`, { stdio: 'ignore' });
+    } catch {
+      // container may not exist yet
+    }
+  }
+
+  public async restartService(entryRelativePath: string, portEnvName = 'PORT'): Promise<void> {
+    await this.stopService();
+    await this.startService(entryRelativePath, portEnvName);
+  }
+
+  public async writeFile(relativeFilePath: string, content: string): Promise<void> {
+    const targetFile = this.resolveSafePath(relativeFilePath);
+    fs.mkdirSync(path.dirname(targetFile), { recursive: true });
+    fs.writeFileSync(targetFile, content, 'utf8');
+  }
+
+  public async readFile(relativeFilePath: string): Promise<string> {
+    const targetFile = this.resolveSafePath(relativeFilePath);
+    if (!fs.existsSync(targetFile)) {
+      throw new Error(`File not found in Docker sandbox: ${targetFile}`);
+    }
+    return fs.readFileSync(targetFile, 'utf8');
+  }
+
+  public async executeCommand(command: string, timeoutSec = 25): Promise<SandboxExecutionResult> {
+    const start = Date.now();
+    try {
+      const stdout = execSync(`docker exec -w /workspace ${this.containerName} sh -c "${command.replace(/"/g, '\\"')}"`, {
+        timeout: timeoutSec * 1000,
+        encoding: 'utf8',
+      });
+      return {
+        exitCode: 0,
+        stdout,
+        stderr: '',
+        durationMs: Date.now() - start,
+      };
+    } catch (err: any) {
+      return {
+        exitCode: err.status ?? 1,
+        stdout: err.stdout?.toString() || '',
+        stderr: err.stderr?.toString() || err.message,
+        durationMs: Date.now() - start,
+      };
+    }
+  }
+
+  public async waitForPortReady(timeoutMs = 10000): Promise<boolean> {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      const ready = await new Promise<boolean>((resolve) => {
+        const socket = new net.Socket();
+        socket.setTimeout(250);
+        socket.once('connect', () => {
+          socket.destroy();
+          resolve(true);
+        });
+        socket.once('error', () => {
+          socket.destroy();
+          resolve(false);
+        });
+        socket.once('timeout', () => {
+          socket.destroy();
+          resolve(false);
+        });
+        socket.connect(this.port, '127.0.0.1');
+      });
+
+      if (ready) return true;
+      await new Promise(r => setTimeout(r, 100));
+    }
+    return false;
+  }
+
+  public async dispatchHttp(options: {
+    method: 'GET' | 'POST' | 'PUT' | 'DELETE';
+    path: string;
+    headers?: Record<string, string>;
+    bodyPayload?: Record<string, unknown>;
+    timeoutMs?: number;
+  }): Promise<{ statusCode: number; body: string; headers: http.IncomingHttpHeaders }> {
+    const payload = options.bodyPayload ? JSON.stringify(options.bodyPayload) : '';
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(payload).toString(),
+      ...(options.headers || {}),
+    };
+
+    return new Promise((resolve, reject) => {
+      const req = http.request(
+        {
+          hostname: '127.0.0.1',
+          port: this.port,
+          path: options.path,
+          method: options.method,
+          headers,
+          timeout: options.timeoutMs || 5000,
+        },
+        (res) => {
+          let body = '';
+          res.on('data', chunk => (body += chunk));
+          res.on('end', () => {
+            resolve({
+              statusCode: res.statusCode || 500,
+              body,
+              headers: res.headers,
+            });
+          });
+        }
+      );
+
+      req.on('error', reject);
+      req.on('timeout', () => {
+        req.destroy();
+        reject(new Error('Docker sandbox HTTP request timed out.'));
+      });
+
+      if (payload) req.write(payload);
+      req.end();
+    });
+  }
+
+  public async destroy(): Promise<void> {
+    await this.stopService();
+    if (fs.existsSync(this.workDir)) {
+      try {
+        fs.rmSync(this.workDir, { recursive: true, force: true });
+      } catch {
+        // cleanup ignore
       }
     }
   }
@@ -430,22 +654,33 @@ export class SandboxFactory {
     sourceDir: string;
     port?: number;
     forceLocal?: boolean;
+    forceDocker?: boolean;
   }): Promise<ISandboxInstance> {
     const port = options.port || (3000 + Math.floor(Math.random() * 5000));
     const daytonaApiKey = process.env.DAYTONA_API_KEY;
 
-    if (daytonaApiKey && !options.forceLocal) {
+    // 1. Daytona Cloud Remote Sandbox
+    if (daytonaApiKey && !options.forceLocal && !options.forceDocker) {
       const daytona = new Daytona({
         apiKey: daytonaApiKey,
         serverUrl: process.env.DAYTONA_SERVER_URL,
       });
-      // Exactly ONE Daytona sandbox created per lifecycle
       const remoteInstance = await daytona.create({ language: 'typescript' });
       const sandbox = new DaytonaRemoteSandbox(remoteInstance, port);
       await sandbox.initWorkspace(options.sourceDir);
       return sandbox;
     }
 
+    // 2. Docker Container Sandbox (if Docker daemon is running and requested)
+    if (options.forceDocker) {
+      const sandboxId = `sbx_docker_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const isolatedDir = path.resolve(process.cwd(), '.sandboxes', sandboxId);
+      const sandbox = new DockerContainerSandbox(sandboxId, isolatedDir, port);
+      await sandbox.initWorkspace(options.sourceDir);
+      return sandbox;
+    }
+
+    // 3. Local Isolated Sandbox with Sanitized Environment & Path Boundary Enforcement
     const sandboxId = `sbx_isolated_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const isolatedDir = path.resolve(process.cwd(), '.sandboxes', sandboxId);
     const sandbox = new LocalIsolatedSandbox(sandboxId, isolatedDir, port);
