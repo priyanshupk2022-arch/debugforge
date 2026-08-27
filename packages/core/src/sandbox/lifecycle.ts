@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as http from 'http';
 import * as net from 'net';
-import { spawn, ChildProcess } from 'child_process';
+import { spawn, execSync, ChildProcess } from 'child_process';
 import { Daytona, Sandbox } from '@daytona/sdk';
 
 export interface SandboxExecutionResult {
@@ -112,7 +112,7 @@ export class LocalIsolatedSandbox implements ISandboxInstance {
       if (proc.pid) {
         try {
           if (process.platform === 'win32') {
-            spawn('taskkill', ['/pid', proc.pid.toString(), '/f', '/t']);
+            execSync(`taskkill /pid ${proc.pid} /f /t`, { stdio: 'ignore' });
           } else {
             proc.kill('SIGKILL');
           }
