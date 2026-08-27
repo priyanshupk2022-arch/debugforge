@@ -1,0 +1,22 @@
+{
+  "name": "zeroshield",
+  "version": "1.0.0",
+  "description": "ZeroShield CLI: Interactive Terminal Hacker TUI & Exploit Immunizer",
+  "bin": {
+    "zeroshield": "dist/index.js"
+  },
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@zeroshield/core": "*",
+    "commander": "^13.1.0",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.4",
+    "typescript": "^5.7.3"
+  }
+}

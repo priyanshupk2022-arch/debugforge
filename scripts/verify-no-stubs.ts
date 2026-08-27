@@ -99,10 +99,12 @@ function scanDirectory(dir: string): StubViolation[] {
 console.log('🔍 Running ZeroShield Anti-Cheat AST Stub Verifier...');
 const packagesDir = path.resolve(process.cwd(), 'packages');
 const srcDir = path.resolve(process.cwd(), 'src');
+const fixturesDir = path.resolve(process.cwd(), 'fixtures');
 
 let violations: StubViolation[] = [];
 if (fs.existsSync(packagesDir)) violations = violations.concat(scanDirectory(packagesDir));
 if (fs.existsSync(srcDir)) violations = violations.concat(scanDirectory(srcDir));
+if (fs.existsSync(fixturesDir)) violations = violations.concat(scanDirectory(fixturesDir));
 
 if (violations.length > 0) {
   console.error('\n🚨 ANTI-CHEAT VIOLATIONS DETECTED:');

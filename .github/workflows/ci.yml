@@ -52,8 +52,10 @@ jobs:
       - name: Qodo PR Agentic Review Action
         uses: Codium-ai/pr-agent@main
         env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           OPENAI_KEY: ${{ secrets.OPENAI_API_KEY || secrets.GEMINI_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CONFIG.MODEL: "gemini/gemini-1.5-pro"
           PR_REVIEWER.REQUIRE_ALL_TESTS_PASS: "true"
           PR_REVIEWER.ENABLE_SECURITY_AUDIT: "true"
           PR_CODE_SUGGESTIONS.NUM_CODE_SUGGESTIONS: 4
