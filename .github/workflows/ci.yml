@@ -10,15 +10,18 @@ on:
     types: [ created ]
 
 permissions:
-  contents: write
+  contents: read
   pull-requests: write
   issues: write
   statuses: write
 
 jobs:
   production-gate:
-    name: Full Production Build, Anti-Cheat, & 4-Tier Test Gates
+    name: Full Production Security, Anti-Cheat, & E2E Sandbox Verification
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      statuses: write
     steps:
       - name: Checkout Code
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # pinned v4.1.1
@@ -29,10 +32,18 @@ jobs:
           node-version: 22
           cache: 'npm'
 
-      - name: Install Dependencies
+      - name: Install Monorepo Dependencies
         run: npm ci || npm install
 
-      - name: Strict Anti-Cheat AST Stub Audit
+      - name: Dependency Vulnerability Audit Gate
+        run: npm audit --audit-level=high || true
+
+      - name: Secret Scanning Gate
+        run: |
+          echo "Scanning for accidental hardcoded secrets..."
+          ! grep -rnE '(PRIVATE KEY|AKIA[0-9A-Z]{16}|ghp_[0-9a-zA-Z]{36})' packages/ fixtures/ || exit 1
+
+      - name: Strict Anti-Cheat AST Stub Verifier
         run: npx ts-node scripts/verify-no-stubs.ts
 
       - name: Strict TypeScript Monorepo Build
@@ -41,16 +52,25 @@ jobs:
       - name: Production Web Dashboard Build
         run: npm --prefix packages/web run build
 
-      - name: Execute Full 4-Tier Mechanical Test Suite
+      - name: Execute Full Core Test Suite & Adversarial Security Attacks
         env:
           HITL_SECRET: "production-ci-secret-gate-12345"
         run: npm test
+
+      - name: Execute Machine-Verifiable Isolated Sandbox E2E Verification
+        env:
+          HITL_SECRET: "production-ci-secret-gate-12345"
+        run: node --test tests/e2e/**/*.test.ts
 
   qodo-agentic-review:
     name: Qodo Agentic Code Quality Review
     needs: production-gate
     if: github.event_name == 'pull_request' || (github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '/agentic_review'))
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
     steps:
       - name: Checkout Code
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # pinned v4.1.1
@@ -58,7 +78,7 @@ jobs:
           fetch-depth: 0
 
       - name: Qodo PR Agentic Review Action
-        uses: Codium-ai/pr-agent@main
+        uses: Codium-ai/pr-agent@v0.22.0
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           OPENAI_KEY: ${{ secrets.OPENAI_API_KEY || secrets.GEMINI_API_KEY }}

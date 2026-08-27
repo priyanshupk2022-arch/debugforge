@@ -4,7 +4,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "test": "node --test dist/**/*.test.js"
+    "test": "npx ts-node --esm tests/app.test.ts"
   },
   "dependencies": {
     "express": "^4.21.2",

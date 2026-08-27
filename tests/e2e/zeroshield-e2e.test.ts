@@ -7,50 +7,76 @@ import {
   BlueAgentImmunizer,
   ImmunizationVerifier,
   HITLGatekeeper,
+  SandboxFactory,
+  RedAgentArena,
 } from '../../packages/core/dist/src/index.js';
 
-describe('ZeroShield End-to-End Autonomous Pipeline', () => {
-  it('should run full scan -> red proof -> blue AVO patch -> triple-lock verify -> HITL card on vulnerable fixture', async () => {
+describe('ZeroShield Machine-Verifiable Sandbox E2E Verification Chain', () => {
+  it('should execute full chain exclusively inside isolated sandbox: spawn -> exploit -> AVO patch -> apply to sandbox -> restart -> triple-lock verify -> exit 0', async () => {
     const fixtureDir = path.resolve(process.cwd(), 'fixtures/vulnerable-payment-app');
+    const port = 3998;
 
-    // 1. Static Scan
+    // STEP 1: AST Scan target
     const hunter = new VulnerabilityHunter();
     const reports = hunter.scanDirectory(fixtureDir);
-
     assert.equal(reports.length >= 1, true);
     const vuln = reports[0];
     assert.equal(vuln.category, 'COMMAND_INJECTION');
-    assert.equal(vuln.cvssBaseScore, 9.8);
 
-    // 2. Blue Agent Patch Generation
-    const immunizer = new BlueAgentImmunizer();
-    const originalCode = fs.readFileSync(vuln.vulnerableFilePath, 'utf8');
-    const patch = immunizer.synthesizePatch(vuln, originalCode);
+    // STEP 2: Spawn Real Sandbox Instance
+    const sandbox = await SandboxFactory.createSandbox({
+      sourceDir: fixtureDir,
+      port,
+      forceLocal: true,
+    });
+    assert.notEqual(sandbox.id, '');
+    assert.ok(fs.existsSync(sandbox.workDir));
 
-    assert.equal(patch.status, 'CANDIDATE');
-    assert.match(patch.patchedCodeSnippet, /execFile/);
-    assert.match(patch.patchDigest, /^[a-f0-9]{64}$/);
+    try {
+      // STEP 3: Start Target Exclusively Inside Sandbox
+      await sandbox.startService('src/server.ts');
+      const isListening = await sandbox.waitForPortReady(5000);
+      assert.equal(isListening, true);
 
-    // 3. Triple-Lock Verification
-    const verifier = new ImmunizationVerifier({ sandboxDir: fixtureDir });
-    const verifiedPatch = await verifier.verifyPatch(vuln, patch);
+      // STEP 4: Run Red Exploit Against Sandbox Service
+      const arena = new RedAgentArena();
+      const exploitResult = await arena.executeExploitInSandbox(vuln, sandbox);
+      assert.equal(exploitResult.exploitConfirmed, true);
+      assert.equal(exploitResult.statusCode, 200);
 
-    assert.equal(verifiedPatch.status, 'IMMUNIZED');
-    assert.equal(verifiedPatch.resultingCvssScore, 0.0);
+      // STEP 5: Synthesize AST Blue Patch
+      const immunizer = new BlueAgentImmunizer();
+      const originalSource = await sandbox.readFile('src/routes/report.ts');
+      const candidatePatch = immunizer.synthesizePatch(vuln, originalSource);
+      assert.equal(candidatePatch.status, 'CANDIDATE');
 
-    // 4. HITL Approval Card
-    const gatekeeper = new HITLGatekeeper('production-test-e2e-secret-key-123');
-    const reviewCard = gatekeeper.generateReviewCard(vuln, verifiedPatch);
+      // STEP 6: Execute Triple-Lock Verification Inside Sandbox
+      const verifier = new ImmunizationVerifier();
+      const verifiedPatch = await verifier.verifyPatchInSandbox(vuln, candidatePatch, sandbox);
 
-    assert.equal(reviewCard.scoreDrop, 9.8);
-    assert.equal(
-      gatekeeper.verifyApproval(
-        verifiedPatch.id,
-        verifiedPatch.patchDigest,
-        reviewCard.approvalToken,
-        reviewCard.expiresAt
-      ),
-      true
-    );
+      // STEP 7: Assert Machine Evidence of Full Chain
+      assert.equal(verifiedPatch.status, 'IMMUNIZED');
+      assert.equal(verifiedPatch.resultingCvssScore, 0.0);
+      assert.equal(verifiedPatch.immunizationResults.exploitBlocked, true);
+      assert.equal(verifiedPatch.immunizationResults.goldenInputsPreserved, true);
+      assert.equal(verifiedPatch.immunizationResults.unitTestsPassed, true);
+      assert.equal(verifiedPatch.immunizationResults.testSuiteExitCode, 0);
+
+      // STEP 8: Cryptographic HITL Review Card Binding
+      const gatekeeper = new HITLGatekeeper('production-machine-verified-secret-key-123');
+      const reviewCard = gatekeeper.generateReviewCard(vuln, verifiedPatch);
+      assert.equal(
+        gatekeeper.verifyApproval(
+          verifiedPatch.id,
+          verifiedPatch.patchDigest,
+          reviewCard.approvalToken,
+          reviewCard.expiresAt
+        ),
+        true
+      );
+    } finally {
+      // STEP 9: Teardown Sandbox
+      await sandbox.destroy();
+    }
   });
 });

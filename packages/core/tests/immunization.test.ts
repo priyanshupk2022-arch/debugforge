@@ -1,42 +1,36 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import * as http from 'http';
+import * as path from 'path';
+import * as fs from 'fs';
 import { ImmunizationVerifier } from '../src/verifier/assert.js';
-import { VulnerabilityReport, SecurityPatchNode } from '../src/types/index.js';
+import { BlueAgentImmunizer } from '../src/blueteam/patcher.js';
+import { VulnerabilityReport } from '../src/types/index.js';
 
-describe('ImmunizationVerifier (Triple-Lock Assertion Engine)', () => {
-  it('should assert all 3 locks pass on successfully patched application', async () => {
-    // Mock immune server
-    const server = http.createServer((req, res) => {
-      let body = '';
-      req.on('data', chunk => (body += chunk));
-      req.on('end', () => {
-        if (body.includes('; cat /etc/passwd')) {
-          // Lock 1: Exploit payload is blocked
-          res.writeHead(400, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: 'Invalid input characters' }));
-        } else if (body.includes('--summary-only')) {
-          // Lock 2: Golden legitimate input passes
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ status: 'Report generated successfully' }));
-        } else {
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ status: 'OK' }));
-        }
-      });
-    });
+function getFixturePaymentAppDir(): string {
+  const candidates = [
+    path.resolve(process.cwd(), 'fixtures/vulnerable-payment-app'),
+    path.resolve(process.cwd(), '../../fixtures/vulnerable-payment-app'),
+    path.resolve(process.cwd(), '../fixtures/vulnerable-payment-app'),
+  ];
+  for (const c of candidates) {
+    if (fs.existsSync(c)) return c;
+  }
+  throw new Error(`Could not find fixtures/vulnerable-payment-app directory. cwd: ${process.cwd()}`);
+}
 
-    await new Promise<void>(resolve => server.listen(0, resolve));
-    const address = server.address() as { port: number };
+describe('ImmunizationVerifier (Triple-Lock Assertion Engine in Sandbox)', () => {
+  it('should apply patch in sandbox, restart target, assert exploit blocked, golden inputs pass, and unit tests pass', async () => {
+    const fixtureDir = getFixturePaymentAppDir();
+    const vulnFilePath = path.join(fixtureDir, 'src/routes/report.ts');
 
     const mockVuln: VulnerabilityReport = {
-      id: 'vuln_1',
+      id: 'vuln_ci_1',
       category: 'COMMAND_INJECTION',
       cwe: 'CWE-78: OS Command Injection',
       cvssBaseScore: 9.8,
       confidence: 'HIGH',
-      vulnerableFilePath: 'src/report.ts',
-      vulnerableLineNumber: 10,
+      vulnerableFilePath: vulnFilePath,
+      vulnerableLineNumber: 8,
       vulnerableColumnNumber: 5,
       sinkIdentifier: 'exec',
       sourceToSinkEvidence: {
@@ -44,7 +38,7 @@ describe('ImmunizationVerifier (Triple-Lock Assertion Engine)', () => {
         sinkSymbol: 'exec',
         taintedParameter: 'command',
         frameworkContext: 'Express.js',
-        tracePath: ['line 10'],
+        tracePath: ['line 8'],
       },
       codeSnippet: 'exec(cmd)',
       exploitPayloadSpec: {
@@ -60,41 +54,39 @@ describe('ImmunizationVerifier (Triple-Lock Assertion Engine)', () => {
           endpoint: '/api/report',
           bodyPayload: { command: '--summary-only' },
           expectedStatusCode: 200,
-          expectedResponseSubstring: 'Report generated',
+          expectedResponseSubstring: 'Report generated successfully',
         },
       ],
       status: 'EXPLOIT_CONFIRMED',
     };
 
-    const candidatePatch: SecurityPatchNode = {
-      id: 'patch_1',
-      parentId: null,
-      vulnerabilityId: 'vuln_1',
-      timestamp: Date.now(),
-      filePath: 'src/report.ts',
-      originalCodeSnippet: 'exec(cmd)',
-      patchedCodeSnippet: 'execFile(cmd)',
-      patchDiff: '+ execFile',
-      patchDigest: 'a1b2c3d4e5f67890123456789abcdef0123456789abcdef0123456789abcdef0',
-      immunizationResults: {
-        exploitBlocked: false,
-        goldenInputsPreserved: false,
-        unitTestsPassed: false,
-        testSuiteExitCode: -1,
-        testSuiteOutput: '',
-        durationMs: 0,
-      },
-      resultingCvssScore: 0.0,
-      status: 'CANDIDATE',
-    };
+    const originalSource = `import { exec } from 'child_process';
+import type { Request, Response } from 'express';
 
-    const verifier = new ImmunizationVerifier({ port: address.port });
+export function handlePaymentReport(req: Request, res: Response): void {
+  const commandInput = req.body?.command || '';
+
+  // Unsafe Command Injection Sink (CWE-78)
+  exec('echo Generating report for: ' + commandInput, (error, stdout) => {
+    if (error) {
+      res.status(500).json({ error: error.message });
+      return;
+    }
+    res.status(200).json({ status: 'Report generated successfully', output: stdout.trim() });
+  });
+}
+`;
+
+    const immunizer = new BlueAgentImmunizer();
+    const candidatePatch = immunizer.synthesizePatch(mockVuln, originalSource);
+
+    const verifier = new ImmunizationVerifier({ port: 3995, useLocalRunner: true });
     const result = await verifier.verifyPatch(mockVuln, candidatePatch);
 
     assert.equal(result.immunizationResults.exploitBlocked, true);
     assert.equal(result.immunizationResults.goldenInputsPreserved, true);
+    assert.equal(result.immunizationResults.unitTestsPassed, true);
     assert.equal(result.status, 'IMMUNIZED');
-
-    server.close();
+    assert.equal(result.resultingCvssScore, 0.0);
   });
 });

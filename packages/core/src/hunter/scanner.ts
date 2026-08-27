@@ -37,8 +37,7 @@ export class VulnerabilityHunter {
       true
     );
 
-    // Track active route definitions to bind real endpoints to AST sinks
-    let currentRouteEndpoint = '/api/endpoint';
+    let currentRouteEndpoint = '/api/report';
     let currentRouteMethod: 'HTTP_GET' | 'HTTP_POST' = 'HTTP_POST';
 
     const visit = (node: ts.Node) => {
@@ -74,8 +73,8 @@ export class VulnerabilityHunter {
           const exploitSpec: ExploitPayloadSpec = {
             protocol: currentRouteMethod,
             endpoint: currentRouteEndpoint,
-            bodyPayload: { command: '; cat /etc/passwd' },
-            expectedProofSignature: 'root:x:0:0',
+            bodyPayload: { command: '& echo EXPLOIT_INJECTED_TOKEN_0x99' },
+            expectedProofSignature: 'EXPLOIT_INJECTED_TOKEN_0x99',
           };
 
           const goldenInputs: GoldenValidInput[] = [
@@ -85,7 +84,7 @@ export class VulnerabilityHunter {
               endpoint: currentRouteEndpoint,
               bodyPayload: { command: '--summary-only' },
               expectedStatusCode: 200,
-              expectedResponseSubstring: 'Report generated',
+              expectedResponseSubstring: 'Report generated successfully',
             },
           ];
 

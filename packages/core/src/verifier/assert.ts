@@ -1,12 +1,10 @@
-import * as http from 'http';
-import { execSync } from 'child_process';
 import * as path from 'path';
-import * as fs from 'fs';
 import { VulnerabilityReport, SecurityPatchNode } from '../types/index.js';
+import { ISandboxInstance, SandboxFactory, findProjectRoot } from '../sandbox/lifecycle.js';
 
 export interface VerifierConfig {
   port?: number;
-  sandboxDir?: string;
+  useLocalRunner?: boolean;
 }
 
 export class ImmunizationVerifier {
@@ -15,36 +13,71 @@ export class ImmunizationVerifier {
   constructor(config: VerifierConfig = {}) {
     this.config = {
       port: config.port || 8080,
-      sandboxDir: config.sandboxDir,
+      useLocalRunner: config.useLocalRunner ?? true,
     };
   }
 
-  public async verifyPatch(
+  public async verifyPatchInSandbox(
     vulnerability: VulnerabilityReport,
-    candidatePatch: SecurityPatchNode
+    candidatePatch: SecurityPatchNode,
+    sandbox: ISandboxInstance
   ): Promise<SecurityPatchNode> {
     const startTime = Date.now();
-    const port = this.config.port || 8080;
 
-    // Lock 1: Re-fire Red Agent exploit to assert blockage
-    const exploitBlocked = await this.probeExploitBlockage(vulnerability, port);
+    // STEP 1: Apply Candidate Patch inside the Sandbox Filesystem
+    const projectRoot = findProjectRoot(vulnerability.vulnerableFilePath);
+    const relPath = path.relative(projectRoot, vulnerability.vulnerableFilePath).replace(/\\/g, '/');
+    await sandbox.writeFile(relPath, candidatePatch.patchedCodeSnippet);
 
-    // Lock 2: Dispatch Golden Legitimate Inputs to assert normal functionality
-    const goldenPassed = await this.probeGoldenInputs(vulnerability, port);
+    // STEP 2: Restart Sandbox Target Service with Patched Code
+    await sandbox.restartService('src/server.ts');
 
-    // Lock 3: Real test suite execution inside target repository/sandbox
-    const testResult = this.executeSandboxTestSuite(this.config.sandboxDir || path.dirname(vulnerability.vulnerableFilePath));
+    // STEP 3: Lock 1 — Re-fire Red Agent Exploit to assert it is blocked
+    const spec = vulnerability.exploitPayloadSpec;
+    const exploitRes = await sandbox.dispatchHttp({
+      method: spec.protocol === 'HTTP_POST' ? 'POST' : 'GET',
+      path: spec.endpoint,
+      headers: spec.headers,
+      bodyPayload: spec.bodyPayload,
+    });
 
-    const allPassed = exploitBlocked && goldenPassed && testResult.exitCode === 0;
+    const isBlocked = (exploitRes.statusCode === 400 || exploitRes.statusCode === 403) &&
+      !exploitRes.body.includes(spec.expectedProofSignature);
+
+    // STEP 4: Lock 2 — Dispatch Golden Legitimate Inputs to assert normal functionality
+    let goldenPassed = true;
+    if (vulnerability.goldenValidInputs && vulnerability.goldenValidInputs.length > 0) {
+      for (const golden of vulnerability.goldenValidInputs) {
+        const goldenRes = await sandbox.dispatchHttp({
+          method: golden.protocol === 'HTTP_POST' ? 'POST' : 'GET',
+          path: golden.endpoint,
+          headers: golden.headers,
+          bodyPayload: golden.bodyPayload,
+        });
+
+        const matchesCode = goldenRes.statusCode === golden.expectedStatusCode;
+        const matchesContent = goldenRes.body.includes(golden.expectedResponseSubstring);
+        if (!matchesCode || !matchesContent) {
+          goldenPassed = false;
+          break;
+        }
+      }
+    }
+
+    // STEP 5: Lock 3 — Run Real Target Test Suite INSIDE Sandbox
+    const testResult = await sandbox.executeCommand('npm test', 25);
+    const testsPassed = testResult.exitCode === 0;
+
+    const allPassed = isBlocked && goldenPassed && testsPassed;
 
     return {
       ...candidatePatch,
       immunizationResults: {
-        exploitBlocked,
+        exploitBlocked: isBlocked,
         goldenInputsPreserved: goldenPassed,
-        unitTestsPassed: testResult.exitCode === 0,
+        unitTestsPassed: testsPassed,
         testSuiteExitCode: testResult.exitCode,
-        testSuiteOutput: testResult.output,
+        testSuiteOutput: testResult.stdout + '\n' + testResult.stderr,
         durationMs: Date.now() - startTime,
       },
       resultingCvssScore: allPassed ? 0.0 : vulnerability.cvssBaseScore,
@@ -52,117 +85,22 @@ export class ImmunizationVerifier {
     };
   }
 
-  private executeSandboxTestSuite(dir: string): { exitCode: number; output: string } {
-    try {
-      let targetDir = dir;
-      while (targetDir && !fs.existsSync(path.join(targetDir, 'package.json')) && targetDir !== path.dirname(targetDir)) {
-        targetDir = path.dirname(targetDir);
-      }
-
-      if (!fs.existsSync(path.join(targetDir, 'package.json'))) {
-        return { exitCode: 0, output: 'No test suite package.json found; zero regression baseline.' };
-      }
-
-      // Real test execution via npm test with 10s timeout
-      const output = execSync('npm test', {
-        cwd: targetDir,
-        timeout: 10000,
-        encoding: 'utf8',
-        stdio: ['ignore', 'pipe', 'pipe'],
-      });
-
-      return { exitCode: 0, output: output || 'Test suite passed with Exit Code 0' };
-    } catch (err: unknown) {
-      const errorOutput = err instanceof Error ? err.message : String(err);
-      return { exitCode: 1, output: errorOutput };
-    }
-  }
-
-  private async probeExploitBlockage(vulnerability: VulnerabilityReport, port: number): Promise<boolean> {
-    const spec = vulnerability.exploitPayloadSpec;
-    const payloadData = spec.bodyPayload ? JSON.stringify(spec.bodyPayload) : '';
-
-    return new Promise<boolean>(resolve => {
-      const req = http.request(
-        {
-          hostname: '127.0.0.1',
-          port: port,
-          path: spec.endpoint,
-          method: spec.protocol === 'HTTP_POST' ? 'POST' : 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Content-Length': Buffer.byteLength(payloadData).toString(),
-            ...(spec.headers || {}),
-          },
-          timeout: 4000,
-        },
-        res => {
-          let body = '';
-          res.on('data', chunk => (body += chunk));
-          res.on('end', () => {
-            const isBlocked = (res.statusCode === 400 || res.statusCode === 403) && !body.includes(spec.expectedProofSignature);
-            resolve(isBlocked);
-          });
-        }
-      );
-
-      req.on('error', () => resolve(false));
-      req.on('timeout', () => {
-        req.destroy();
-        resolve(false);
-      });
-
-      if (payloadData) req.write(payloadData);
-      req.end();
+  public async verifyPatch(
+    vulnerability: VulnerabilityReport,
+    candidatePatch: SecurityPatchNode
+  ): Promise<SecurityPatchNode> {
+    const targetSourceDir = findProjectRoot(vulnerability.vulnerableFilePath);
+    const sandbox = await SandboxFactory.createSandbox({
+      sourceDir: targetSourceDir,
+      port: this.config.port,
+      forceLocal: this.config.useLocalRunner,
     });
-  }
 
-  private async probeGoldenInputs(vulnerability: VulnerabilityReport, port: number): Promise<boolean> {
-    if (!vulnerability.goldenValidInputs || vulnerability.goldenValidInputs.length === 0) {
-      return true;
+    try {
+      await sandbox.startService('src/server.ts');
+      return await this.verifyPatchInSandbox(vulnerability, candidatePatch, sandbox);
+    } finally {
+      await sandbox.destroy();
     }
-
-    for (const golden of vulnerability.goldenValidInputs) {
-      const payloadData = golden.bodyPayload ? JSON.stringify(golden.bodyPayload) : '';
-
-      const passed = await new Promise<boolean>(resolve => {
-        const req = http.request(
-          {
-            hostname: '127.0.0.1',
-            port: port,
-            path: golden.endpoint,
-            method: golden.protocol === 'HTTP_POST' ? 'POST' : 'GET',
-            headers: {
-              'Content-Type': 'application/json',
-              'Content-Length': Buffer.byteLength(payloadData).toString(),
-              ...(golden.headers || {}),
-            },
-            timeout: 4000,
-          },
-          res => {
-            let body = '';
-            res.on('data', chunk => (body += chunk));
-            res.on('end', () => {
-              const matchesCode = res.statusCode === golden.expectedStatusCode;
-              const matchesContent = body.includes(golden.expectedResponseSubstring);
-              resolve(matchesCode && matchesContent);
-            });
-          }
-        );
-
-        req.on('error', () => resolve(false));
-        req.on('timeout', () => {
-          req.destroy();
-          resolve(false);
-        });
-
-        if (payloadData) req.write(payloadData);
-        req.end();
-      });
-
-      if (!passed) return false;
-    }
-
-    return true;
   }
 }
