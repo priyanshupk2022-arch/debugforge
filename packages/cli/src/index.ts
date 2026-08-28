@@ -247,4 +247,16 @@ program
     }
   });
 
+// 5. Live Web API Server for Frontend UI
+program
+  .command('serve')
+  .description('Start the ZeroShield Live HTTP API Server for the Web Security Command Center')
+  .option('-p, --port <port>', 'API Server Port', '3001')
+  .action(async (options: { port: string }) => {
+    const { ZeroShieldApiServer } = await import('./server.js');
+    const port = parseInt(options.port, 10) || 3001;
+    const server = new ZeroShieldApiServer(port);
+    await server.start();
+  });
+
 program.parse(process.argv);

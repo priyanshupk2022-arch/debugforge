@@ -93,4 +93,56 @@ describe('VulnerabilityHunter (AST Sink Scanner)', () => {
     // Cleanup
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
+
+  it('should detect CWE-918 SSRF with unvalidated URL fetching', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'zeroshield-test-'));
+    const testFile = path.join(tmpDir, 'webhook.ts');
+
+    const code = `
+      import express from 'express';
+      const app = express();
+      app.post('/api/webhook', (req, res) => {
+        const targetUrl = req.body.url;
+        fetch(targetUrl).then(r => r.text()).then(t => res.send(t));
+      });
+    `;
+    fs.writeFileSync(testFile, code);
+
+    const hunter = new VulnerabilityHunter();
+    const reports = hunter.scanDirectory(tmpDir);
+
+    assert.equal(reports.length, 1);
+    assert.equal(reports[0].category, 'SSRF');
+    assert.equal(reports[0].cwe, 'CWE-918: Server-Side Request Forgery');
+    assert.equal(reports[0].cvssBaseScore, 8.6);
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it('should detect CWE-22 Path Traversal with unvalidated fs read', () => {
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'zeroshield-test-'));
+    const testFile = path.join(tmpDir, 'file.ts');
+
+    const code = `
+      import express from 'express';
+      import fs from 'fs';
+      const app = express();
+      app.post('/api/file', (req, res) => {
+        const fileName = req.body.filename;
+        const content = fs.readFileSync(fileName, 'utf8');
+        res.send(content);
+      });
+    `;
+    fs.writeFileSync(testFile, code);
+
+    const hunter = new VulnerabilityHunter();
+    const reports = hunter.scanDirectory(tmpDir);
+
+    assert.equal(reports.length, 1);
+    assert.equal(reports[0].category, 'PATH_TRAVERSAL');
+    assert.equal(reports[0].cwe, 'CWE-22: Improper Limitation of a Pathname to a Restricted Directory');
+    assert.equal(reports[0].cvssBaseScore, 7.5);
+
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  });
 });

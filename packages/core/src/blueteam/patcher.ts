@@ -28,6 +28,18 @@ export class BlueAgentImmunizer {
         /jwt\.decode\s*\(\s*([^)]+)\s*\)/g,
         `jwt.verify($1, process.env.JWT_SECRET || (() => { throw new Error('JWT_SECRET missing'); })(), { algorithms: ['HS256'] })`
       );
+    } else if (report.category === 'SSRF') {
+      schemaInjected = 'Private IP / RFC-1918 URL Sanitization with Zod Schema';
+      patchedContent = `import { z } from 'zod';\n` + sourceContent.replace(
+        /const\s+targetUrl\s*=\s*([^;]+);/g,
+        `const urlSchema = z.string().url().refine(u => !u.includes('169.254.') && !u.includes('127.0.0.1') && !u.includes('localhost') && !u.includes('10.') && !u.includes('192.168.'), { message: 'Private or Metadata IP address access blocked' });\n  const urlParse = urlSchema.safeParse($1);\n  if (!urlParse.success) { res.status(403).json({ error: 'SSRF blocked: Private/Cloud metadata destination prohibited' }); return; }\n  const targetUrl = urlParse.data;`
+      );
+    } else if (report.category === 'PATH_TRAVERSAL') {
+      schemaInjected = 'Canonical Path Resolution & Whitelisted Base Directory Boundary Assertion';
+      patchedContent = sourceContent.replace(
+        /const\s+filePath\s*=\s*path\.join\s*\(\s*([^,]+),\s*([^)]+)\s*\);/g,
+        `const baseDir = path.resolve($1);\n  const safePath = path.resolve(baseDir, $2);\n  if (!safePath.startsWith(baseDir + path.sep) && safePath !== baseDir) { res.status(403).json({ error: 'Path traversal blocked' }); return; }\n  const filePath = safePath;`
+      );
     }
 
     // Verify syntax validity of synthesized patch

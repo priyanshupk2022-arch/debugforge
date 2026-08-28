@@ -157,9 +157,115 @@ export class VulnerabilityHunter {
             status: 'SUSPECTED',
           });
         }
+
+        // 4. Server-Side Request Forgery Sink Detection (CWE-918)
+        if (text === 'axios.get' || text === 'fetch' || text === 'http.get' || text === 'https.get') {
+          const fullCallText = node.getText(sourceFile);
+          if (fullCallText.includes('req.query.url') || fullCallText.includes('req.body.url') || fullCallText.includes('targetUrl')) {
+            const { line, character } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
+            const evidence: SourceToSinkEvidence = {
+              sourceSymbol: 'req.query.url || req.body.url',
+              sinkSymbol: text,
+              taintedParameter: 'url',
+              frameworkContext: 'Proxy / Webhook Service',
+              tracePath: [
+                `${canonicalFile}:${line + 1} - CallExpression: ${text}(...)`,
+                'User-controlled URL fetched without private IP/RFC-1918 blocklist validation',
+              ],
+            };
+
+            const exploitSpec: ExploitPayloadSpec = {
+              protocol: currentRouteMethod,
+              endpoint: currentRouteEndpoint,
+              bodyPayload: { url: 'http://169.254.169.254/latest/meta-data/' },
+              expectedProofSignature: 'iam-security-credentials',
+            };
+
+            const goldenInputs: GoldenValidInput[] = [
+              {
+                description: 'Legitimate public webhook URL dispatch',
+                protocol: currentRouteMethod,
+                endpoint: currentRouteEndpoint,
+                bodyPayload: { url: 'https://api.github.com/zen' },
+                expectedStatusCode: 200,
+                expectedResponseSubstring: 'OK',
+              },
+            ];
+
+            reports.push({
+              id: `vuln_ssrf_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+              category: 'SSRF',
+              cwe: 'CWE-918: Server-Side Request Forgery',
+              cvssBaseScore: 8.6,
+              confidence: 'HIGH',
+              vulnerableFilePath: canonicalFile,
+              vulnerableLineNumber: line + 1,
+              vulnerableColumnNumber: character + 1,
+              sinkIdentifier: text,
+              sourceToSinkEvidence: evidence,
+              codeSnippet: fullCallText.split('\n')[0],
+              exploitPayloadSpec: exploitSpec,
+              goldenValidInputs: goldenInputs,
+              status: 'SUSPECTED',
+            });
+          }
+        }
+
+        // 5. Path Traversal Sink Detection (CWE-22)
+        if (text === 'fs.readFileSync' || text === 'fs.readFile' || text === 'fs.createReadStream') {
+          const fullCallText = node.getText(sourceFile);
+          if (fullCallText.includes('req.query.file') || fullCallText.includes('req.body.filename') || fullCallText.includes('fileName')) {
+            const { line, character } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
+            const evidence: SourceToSinkEvidence = {
+              sourceSymbol: 'req.query.file',
+              sinkSymbol: text,
+              taintedParameter: 'filename',
+              frameworkContext: 'File Viewer Service',
+              tracePath: [
+                `${canonicalFile}:${line + 1} - CallExpression: ${text}(...)`,
+                'User-controlled path passed directly to filesystem read without canonical boundary verification',
+              ],
+            };
+
+            const exploitSpec: ExploitPayloadSpec = {
+              protocol: currentRouteMethod,
+              endpoint: currentRouteEndpoint,
+              bodyPayload: { filename: '../../../../etc/passwd' },
+              expectedProofSignature: 'root:x:0:0',
+            };
+
+            const goldenInputs: GoldenValidInput[] = [
+              {
+                description: 'Legitimate document read',
+                protocol: currentRouteMethod,
+                endpoint: currentRouteEndpoint,
+                bodyPayload: { filename: 'terms.txt' },
+                expectedStatusCode: 200,
+                expectedResponseSubstring: 'Terms of Service',
+              },
+            ];
+
+            reports.push({
+              id: `vuln_pt_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+              category: 'PATH_TRAVERSAL',
+              cwe: 'CWE-22: Improper Limitation of a Pathname to a Restricted Directory',
+              cvssBaseScore: 7.5,
+              confidence: 'HIGH',
+              vulnerableFilePath: canonicalFile,
+              vulnerableLineNumber: line + 1,
+              vulnerableColumnNumber: character + 1,
+              sinkIdentifier: text,
+              sourceToSinkEvidence: evidence,
+              codeSnippet: fullCallText.split('\n')[0],
+              exploitPayloadSpec: exploitSpec,
+              goldenValidInputs: goldenInputs,
+              status: 'SUSPECTED',
+            });
+          }
+        }
       }
 
-      // 4. Prototype Pollution Sink Detection (CWE-1321)
+      // 6. Prototype Pollution Sink Detection (CWE-1321)
       if (ts.isFunctionDeclaration(node) || ts.isFunctionExpression(node) || ts.isArrowFunction(node)) {
         const fullFnText = node.getText(sourceFile);
         if (

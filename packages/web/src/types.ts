@@ -1,7 +1,10 @@
 export type VulnerabilityCategory =
   | 'COMMAND_INJECTION'
   | 'PROTOTYPE_POLLUTION'
-  | 'BROKEN_AUTH_IDOR';
+  | 'BROKEN_AUTH_IDOR'
+  | 'SSRF'
+  | 'SQL_INJECTION'
+  | 'PATH_TRAVERSAL';
 
 export interface ExploitPayloadSpec {
   protocol: 'HTTP_GET' | 'HTTP_POST';

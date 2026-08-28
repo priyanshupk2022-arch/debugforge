@@ -3,12 +3,18 @@ import { z } from 'zod';
 export type VulnerabilityCategory =
   | 'COMMAND_INJECTION'
   | 'PROTOTYPE_POLLUTION'
-  | 'BROKEN_AUTH_IDOR';
+  | 'BROKEN_AUTH_IDOR'
+  | 'SSRF'
+  | 'SQL_INJECTION'
+  | 'PATH_TRAVERSAL';
 
 export const VulnerabilityCategorySchema = z.enum([
   'COMMAND_INJECTION',
   'PROTOTYPE_POLLUTION',
   'BROKEN_AUTH_IDOR',
+  'SSRF',
+  'SQL_INJECTION',
+  'PATH_TRAVERSAL',
 ]);
 
 export interface ExploitPayloadSpec {

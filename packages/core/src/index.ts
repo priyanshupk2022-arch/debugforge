@@ -8,3 +8,5 @@ export * from './supervisor/detector.js';
 export * from './hitl/gatekeeper.js';
 export * from './github/client.js';
 export * from './mcp/index.js';
+export * from './reporting/generator.js';
+export * from './orchestrator/engine.js';
