@@ -7,7 +7,10 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "tsc -b packages/core packages/cli",
+    "dev": "npm --prefix packages/web run dev",
+    "serve": "node packages/cli/dist/index.js serve --port 3001",
+    "agent": "node packages/cli/dist/index.js agent",
+    "build": "tsc -b packages/core packages/cli && npm --prefix packages/web run build",
     "test": "node --test packages/core/dist/**/*.test.js",
     "test:anti-cheat": "node dist/scripts/verify-no-stubs.js || ts-node scripts/verify-no-stubs.ts",
     "benchmark": "ts-node scripts/run-benchmark.ts",
