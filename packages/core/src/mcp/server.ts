@@ -1,409 +1,114 @@
-import * as path from 'path';
-import { VulnerabilityHunter } from '../hunter/scanner.js';
-import { RedAgentArena, ExploitExecutionResult } from '../redteam/exploit.js';
-import { BlueAgentImmunizer } from '../blueteam/patcher.js';
-import { ImmunizationVerifier } from '../verifier/assert.js';
-import { VulnerabilityReport, SecurityPatchNode } from '../types/index.js';
-import { ZeroShieldSessionStore } from './session.js';
+import { ingestError } from "../tools/ingest-error.js";
+import { reproduceInSandbox } from "../tools/reproduce.js";
+import { traceAndAnalyze } from "../tools/trace-analyze.js";
+import { autoPatch } from "../tools/auto-patch.js";
+import { verifyFix } from "../tools/verify-fix.js";
 
-export interface McpToolDefinition {
+export interface MCPToolDefinition {
   name: string;
   description: string;
-  inputSchema: {
-    type: 'object';
-    properties: Record<string, unknown>;
-    required?: string[];
-  };
+  parameters: Record<string, unknown>;
+  handler: (args: any) => Promise<unknown> | unknown;
 }
 
-export interface McpToolResult {
-  content: Array<{
-    type: 'text';
-    text: string;
-  }>;
-  isError?: boolean;
-}
+export class TrueForgeMCPServer {
+  private tools: Map<string, MCPToolDefinition> = new Map();
 
-export interface JsonRpcRequest {
-  jsonrpc: '2.0';
-  id?: string | number;
-  method: string;
-  params?: Record<string, unknown>;
-}
-
-export interface JsonRpcResponse {
-  jsonrpc: '2.0';
-  id?: string | number;
-  result?: unknown;
-  error?: {
-    code: number;
-    message: string;
-    data?: unknown;
-  };
-}
-
-export class TrueForgeMcpServer {
-  private sessionStore: ZeroShieldSessionStore;
-  private hunter: VulnerabilityHunter;
-  private redAgent: RedAgentArena;
-  private blueAgent: BlueAgentImmunizer;
-  private verifier: ImmunizationVerifier;
-  private workspaceAllowlist: Set<string>;
-
-  constructor(sessionStore?: ZeroShieldSessionStore, allowedWorkspaces: string[] = [process.cwd()]) {
-    this.sessionStore = sessionStore || new ZeroShieldSessionStore({ inMemory: true });
-    this.hunter = new VulnerabilityHunter();
-    this.redAgent = new RedAgentArena();
-    this.blueAgent = new BlueAgentImmunizer();
-    this.verifier = new ImmunizationVerifier();
-    this.workspaceAllowlist = new Set(allowedWorkspaces.map(w => path.resolve(w).toLowerCase()));
+  constructor() {
+    this.registerBuiltinTools();
   }
 
-  public getSessionStore(): ZeroShieldSessionStore {
-    return this.sessionStore;
-  }
-
-  public validateWorkspacePath(targetPath: string): string {
-    const canonical = path.resolve(targetPath);
-    const lowerCanonical = canonical.toLowerCase();
-    let isAllowed = false;
-
-    for (const allowed of this.workspaceAllowlist) {
-      if (lowerCanonical === allowed || lowerCanonical.startsWith(allowed + path.sep)) {
-        isAllowed = true;
-        break;
-      }
-    }
-
-    if (!isAllowed) {
-      throw new Error(`SECURITY ACCESS DENIED: Path "${targetPath}" is outside allowed workspace boundaries.`);
-    }
-
-    return canonical;
-  }
-
-  public getToolDefinitions(): McpToolDefinition[] {
-    return [
-      {
-        name: 'zeroshield_sast_scan',
-        description: 'AST-based static analysis scanner to detect CWE-78 (Command Injection), CWE-1321 (Prototype Pollution), and CWE-287 (Broken Auth IDOR) sinks in a target directory or repository.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            targetDir: {
-              type: 'string',
-              description: 'Absolute or relative filesystem path to the target source directory to scan.',
-            },
-            sessionId: {
-              type: 'string',
-              description: 'Optional ZeroShield session ID to associate discovered sinks and persist audit trails.',
-            },
-          },
-          required: ['targetDir'],
+  private registerBuiltinTools(): void {
+    this.registerTool({
+      name: "debugforge_ingest_error",
+      description: "Parses raw stack traces and test logs into structured error diagnostic models.",
+      parameters: {
+        type: "object",
+        properties: {
+          rawLog: { type: "string", description: "The raw error log or stack trace" },
         },
+        required: ["rawLog"],
       },
-      {
-        name: 'zeroshield_daytona_exploit',
-        description: 'Executes a safe red-team exploit payload in the Daytona sandbox arena to confirm vulnerability proof-of-exploit.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            vulnerability: {
-              type: 'object',
-              description: 'The vulnerability report containing target endpoint, payload specs, and expected proof signature.',
-            },
-            port: {
-              type: 'number',
-              description: 'Target service port for local or sandbox runner (default: 8080).',
-            },
-            useLocalRunner: {
-              type: 'boolean',
-              description: 'Whether to use local loopback runner or remote Daytona runner (default: true).',
-            },
-            sessionId: {
-              type: 'string',
-              description: 'Optional session ID for audit logging.',
-            },
-          },
-          required: ['vulnerability'],
+      handler: (args: { rawLog: string }) => ingestError(args.rawLog),
+    });
+
+    this.registerTool({
+      name: "debugforge_reproduce_in_sandbox",
+      description: "Executes test command in isolated Daytona sandbox to confirm failure reproduction.",
+      parameters: {
+        type: "object",
+        properties: {
+          projectPath: { type: "string", description: "Path to project root" },
+          testCommand: { type: "string", description: "Command to execute (e.g. npm test)" },
         },
+        required: ["projectPath"],
       },
-      {
-        name: 'zeroshield_avo_patch',
-        description: 'Synthesizes an Automated Vulnerability Optimization (AVO) AST security patch and schema sanitization for the detected vulnerability.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            vulnerability: {
-              type: 'object',
-              description: 'The vulnerability report to be patched.',
-            },
-            sourceContent: {
-              type: 'string',
-              description: 'The raw source code content of the vulnerable file.',
-            },
-            sessionId: {
-              type: 'string',
-              description: 'Optional session ID for audit logging.',
-            },
-          },
-          required: ['vulnerability', 'sourceContent'],
+      handler: (args: { projectPath: string; testCommand?: string }) => reproduceInSandbox(args),
+    });
+
+    this.registerTool({
+      name: "debugforge_trace_and_analyze",
+      description: "Traces dynamic execution backwards from crash site to locate the true infection origin.",
+      parameters: {
+        type: "object",
+        properties: {
+          errorReport: { type: "object", description: "Parsed error report" },
+          projectPath: { type: "string", description: "Path to project root" },
         },
+        required: ["errorReport", "projectPath"],
       },
-      {
-        name: 'zeroshield_immunize_verify',
-        description: 'Runs the 3-Lock Immunization Verifier ensuring exploit is blocked, golden legitimate inputs are preserved, and test suite passes.',
-        inputSchema: {
-          type: 'object',
-          properties: {
-            vulnerability: {
-              type: 'object',
-              description: 'The target vulnerability report.',
-            },
-            candidatePatch: {
-              type: 'object',
-              description: 'The candidate SecurityPatchNode to verify.',
-            },
-            port: {
-              type: 'number',
-              description: 'Target service port (default: 8080).',
-            },
-            sessionId: {
-              type: 'string',
-              description: 'Optional session ID for updating candidate patch state and audit logs.',
-            },
-          },
-          required: ['vulnerability', 'candidatePatch'],
+      handler: (args: { errorReport: any; projectPath: string }) => traceAndAnalyze(args),
+    });
+
+    this.registerTool({
+      name: "debugforge_auto_patch",
+      description: "Synthesizes deterministic surgical unified diff patches to remediate infection origins.",
+      parameters: {
+        type: "object",
+        properties: {
+          rca: { type: "object", description: "Root cause analysis object" },
+          projectPath: { type: "string", description: "Target directory" },
         },
+        required: ["rca", "projectPath"],
       },
-    ];
+      handler: (args: { rca: any; projectPath: string }) => autoPatch(args),
+    });
+
+    this.registerTool({
+      name: "debugforge_verify_fix",
+      description: "Asserts Triple-Lock verification: bug fixed, zero regressions, stress test passed.",
+      parameters: {
+        type: "object",
+        properties: {
+          errorId: { type: "string", description: "Target error ID" },
+          projectPath: { type: "string", description: "Project directory" },
+          testCommand: { type: "string", description: "Test command to evaluate" },
+        },
+        required: ["errorId", "projectPath"],
+      },
+      handler: (args: { errorId: string; projectPath: string; testCommand?: string }) => verifyFix(args),
+    });
   }
 
-  public async executeTool(name: string, args: Record<string, unknown>): Promise<McpToolResult> {
-    try {
-      switch (name) {
-        case 'zeroshield_sast_scan': {
-          const rawTargetDir = args.targetDir as string;
-          const sessionId = args.sessionId as string | undefined;
-          if (!rawTargetDir) {
-            return { content: [{ type: 'text', text: 'Error: targetDir is required' }], isError: true };
-          }
-
-          const targetDir = this.validateWorkspacePath(rawTargetDir);
-          const reports = this.hunter.scanDirectory(targetDir);
-
-          if (sessionId) {
-            const session = this.sessionStore.getSession(sessionId);
-            if (session) {
-              session.discoveredSinks = reports;
-              this.sessionStore.saveSession(session);
-            }
-            this.sessionStore.recordAuditTrail({
-              sessionId,
-              eventType: 'SAST_SCAN_COMPLETED',
-              actor: 'zeroshield_sast_scan',
-              details: { targetDir, foundCount: reports.length, reports },
-            });
-          }
-
-          return {
-            content: [{ type: 'text', text: JSON.stringify({ success: true, count: reports.length, reports }, null, 2) }],
-          };
-        }
-
-        case 'zeroshield_daytona_exploit': {
-          const vulnerability = args.vulnerability as VulnerabilityReport;
-          const port = (args.port as number) || 8080;
-          const useLocalRunner = args.useLocalRunner !== undefined ? Boolean(args.useLocalRunner) : true;
-          const sessionId = args.sessionId as string | undefined;
-
-          if (!vulnerability) {
-            return { content: [{ type: 'text', text: 'Error: vulnerability is required' }], isError: true };
-          }
-
-          const arena = (port === 8080 && useLocalRunner)
-            ? this.redAgent
-            : new RedAgentArena({ fallbackPort: port, useLocalRunner });
-          const exploitResult: ExploitExecutionResult = await arena.executeExploitProof(vulnerability, port);
-
-          if (sessionId) {
-            this.sessionStore.recordAuditTrail({
-              sessionId,
-              eventType: 'EXPLOIT_PROOF_EXECUTED',
-              actor: 'zeroshield_daytona_exploit',
-              details: {
-                vulnerabilityId: vulnerability.id,
-                exploitConfirmed: exploitResult.exploitConfirmed,
-                statusCode: exploitResult.statusCode,
-                sandboxId: exploitResult.daytonaSandboxId,
-              },
-            });
-          }
-
-          return {
-            content: [{ type: 'text', text: JSON.stringify(exploitResult, null, 2) }],
-          };
-        }
-
-        case 'zeroshield_avo_patch': {
-          const vulnerability = args.vulnerability as VulnerabilityReport;
-          const sourceContent = args.sourceContent as string;
-          const sessionId = args.sessionId as string | undefined;
-
-          if (!vulnerability || sourceContent === undefined) {
-            return { content: [{ type: 'text', text: 'Error: vulnerability and sourceContent are required' }], isError: true };
-          }
-
-          const patchNode = this.blueAgent.synthesizePatch(vulnerability, sourceContent);
-
-          if (sessionId) {
-            const session = this.sessionStore.getSession(sessionId);
-            if (session) {
-              session.candidatePatches.push(patchNode);
-              this.sessionStore.saveSession(session);
-            }
-            this.sessionStore.recordAuditTrail({
-              sessionId,
-              eventType: 'PATCH_SYNTHESIZED',
-              actor: 'zeroshield_avo_patch',
-              details: {
-                vulnerabilityId: vulnerability.id,
-                patchId: patchNode.id,
-                diffLength: patchNode.patchDiff.length,
-              },
-            });
-          }
-
-          return {
-            content: [{ type: 'text', text: JSON.stringify(patchNode, null, 2) }],
-          };
-        }
-
-        case 'zeroshield_immunize_verify': {
-          const vulnerability = args.vulnerability as VulnerabilityReport;
-          const candidatePatch = args.candidatePatch as SecurityPatchNode;
-          const port = (args.port as number) || 8080;
-          const sessionId = args.sessionId as string | undefined;
-
-          if (!vulnerability || !candidatePatch) {
-            return { content: [{ type: 'text', text: 'Error: vulnerability and candidatePatch are required' }], isError: true };
-          }
-
-          const targetVerifier = (port === 8080)
-            ? this.verifier
-            : new ImmunizationVerifier({ port });
-          const verifiedPatch = await targetVerifier.verifyPatch(vulnerability, candidatePatch);
-
-          if (sessionId) {
-            const session = this.sessionStore.getSession(sessionId);
-            if (session) {
-              const existingIdx = session.candidatePatches.findIndex(p => p.id === verifiedPatch.id);
-              if (existingIdx >= 0) {
-                session.candidatePatches[existingIdx] = verifiedPatch;
-              } else {
-                session.candidatePatches.push(verifiedPatch);
-              }
-              this.sessionStore.saveSession(session);
-            }
-            this.sessionStore.recordAuditTrail({
-              sessionId,
-              eventType: 'IMMUNIZATION_VERIFIED',
-              actor: 'zeroshield_immunize_verify',
-              details: {
-                vulnerabilityId: vulnerability.id,
-                patchId: verifiedPatch.id,
-                status: verifiedPatch.status,
-                resultingCvssScore: verifiedPatch.resultingCvssScore,
-                results: verifiedPatch.immunizationResults,
-              },
-            });
-          }
-
-          return {
-            content: [{ type: 'text', text: JSON.stringify(verifiedPatch, null, 2) }],
-          };
-        }
-
-        default:
-          return {
-            content: [{ type: 'text', text: `Unknown tool: ${name}` }],
-            isError: true,
-          };
-      }
-    } catch (err: unknown) {
-      const errorMessage = err instanceof Error ? err.message : String(err);
-      return {
-        content: [{ type: 'text', text: `Tool execution failed: ${errorMessage}` }],
-        isError: true,
-      };
-    }
+  registerTool(tool: MCPToolDefinition): void {
+    this.tools.set(tool.name, tool);
   }
 
-  public async handleJsonRpc(request: JsonRpcRequest): Promise<JsonRpcResponse> {
-    if (request.jsonrpc !== '2.0') {
-      return {
-        jsonrpc: '2.0',
-        id: request.id,
-        error: { code: -32600, message: 'Invalid Request: jsonrpc must be "2.0"' },
-      };
+  getTool(name: string): MCPToolDefinition | undefined {
+    return this.tools.get(name);
+  }
+
+  listTools(): MCPToolDefinition[] {
+    return Array.from(this.tools.values());
+  }
+
+  async callTool(name: string, args: any): Promise<unknown> {
+    const tool = this.tools.get(name);
+    if (!tool) {
+      throw new Error(`MCP tool not found: ${name}`);
     }
-
-    switch (request.method) {
-      case 'ping':
-        return { jsonrpc: '2.0', id: request.id, result: { status: 'pong', timestamp: Date.now() } };
-
-      case 'initialize':
-        return {
-          jsonrpc: '2.0',
-          id: request.id,
-          result: {
-            protocolVersion: '2024-11-05',
-            capabilities: {
-              tools: {},
-            },
-            serverInfo: {
-              name: 'zeroshield-trueforge-mcp',
-              version: '1.0.0',
-            },
-          },
-        };
-
-      case 'tools/list':
-        return {
-          jsonrpc: '2.0',
-          id: request.id,
-          result: {
-            tools: this.getToolDefinitions(),
-          },
-        };
-
-      case 'tools/call': {
-        const params = request.params || {};
-        const toolName = params.name as string;
-        const toolArgs = (params.arguments as Record<string, unknown>) || {};
-
-        if (!toolName) {
-          return {
-            jsonrpc: '2.0',
-            id: request.id,
-            error: { code: -32602, message: 'Invalid params: name is required for tools/call' },
-          };
-        }
-
-        const toolResult = await this.executeTool(toolName, toolArgs);
-        return {
-          jsonrpc: '2.0',
-          id: request.id,
-          result: toolResult,
-        };
-      }
-
-      default:
-        return {
-          jsonrpc: '2.0',
-          id: request.id,
-          error: { code: -32601, message: `Method not found: ${request.method}` },
-        };
-    }
+    return await tool.handler(args);
   }
 }
+
+export const trueforgeMCPServer = new TrueForgeMCPServer();

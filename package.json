@@ -1,41 +1,39 @@
 {
-  "name": "zeroshield",
+  "name": "debugforge",
   "version": "1.0.0",
-  "description": "ZeroShield: Autonomous Cyber Red-Team & Exploit Immunizer Engine built on TrueForge, Daytona, and Qodo",
+  "description": "DebugForge: Autonomous AI Debugging Agent Harness — Reproduce, Diagnose & Auto-Heal in Sandboxes",
   "private": true,
   "workspaces": [
     "packages/*"
   ],
   "scripts": {
+    "build": "npm --prefix packages/core run build && npm --prefix packages/cli run build",
+    "build:web": "npm --prefix packages/web run build",
+    "build:all": "npm --prefix packages/core run build && npm --prefix packages/cli run build && npm --prefix packages/web run build",
     "dev": "npm --prefix packages/web run dev",
-    "serve": "node packages/cli/dist/index.js serve --port 3001",
+    "test": "node --test packages/core/dist/tests/core.test.js",
+    "diagnose": "node packages/cli/dist/index.js diagnose",
+    "watch": "node packages/cli/dist/index.js watch",
     "agent": "node packages/cli/dist/index.js agent",
-    "build": "tsc -b packages/core packages/cli && npm --prefix packages/web run build",
-    "test": "node --test packages/core/dist/**/*.test.js",
-    "test:anti-cheat": "node dist/scripts/verify-no-stubs.js || ts-node scripts/verify-no-stubs.ts",
-    "benchmark": "ts-node scripts/run-benchmark.ts",
-    "clean": "rimraf packages/*/dist packages/*/tsconfig.tsbuildinfo dist"
+    "demo:null": "node packages/cli/dist/index.js diagnose --target fixtures/null-propagation-api",
+    "demo:race": "node packages/cli/dist/index.js diagnose --target fixtures/race-condition-app",
+    "demo:memory": "node packages/cli/dist/index.js diagnose --target fixtures/memory-leak-server",
+    "clean": "rimraf packages/*/dist packages/*/tsconfig.tsbuildinfo"
   },
   "keywords": [
-    "cybersecurity",
-    "red-team",
-    "exploit-immunizer",
+    "debugging",
+    "ai-agent",
     "trueforge",
     "daytona",
     "qodo",
-    "ast-codemod",
-    "avo-loop"
+    "autonomous-debugging",
+    "root-cause-analysis",
+    "auto-heal"
   ],
   "author": "Priyanshu",
   "license": "MIT",
   "devDependencies": {
-    "@types/express": "^5.0.6",
-    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22.13.4",
-    "commander": "^15.0.0",
-    "express": "^5.2.1",
-    "jsonwebtoken": "^9.0.3",
-    "ts-node": "^10.9.2",
     "typescript": "^5.7.3"
   }
 }

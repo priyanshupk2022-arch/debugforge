@@ -1,19 +1,21 @@
 {
-  "name": "zeroshield",
+  "name": "@debugforge/cli",
   "version": "1.0.0",
-  "description": "ZeroShield CLI: Interactive Terminal Hacker TUI & Exploit Immunizer",
+  "description": "DebugForge Terminal UI & Interactive Autonomous Debugging CLI Harness",
+  "type": "module",
   "bin": {
-    "zeroshield": "dist/index.js"
+    "debugforge": "./dist/index.js"
   },
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js"
   },
-  "dependencies": {
-    "@zeroshield/core": "*",
+    "dependencies": {
+    "@debugforge/core": "file:../core",
     "commander": "^13.1.0",
-    "dotenv": "^16.4.7"
+    "chalk": "^5.4.1",
+    "diff": "^7.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.13.4",

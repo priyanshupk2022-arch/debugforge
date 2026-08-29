@@ -1,13 +1,12 @@
-Write-Host "🛡️  Installing ZeroShield for Windows (native PowerShell)..." -ForegroundColor Cyan
+# DebugForge Native Windows PowerShell Installer
+Write-Host "🔥 Installing DebugForge: Autonomous AI Debugging Agent Harness..." -ForegroundColor Cyan
 
-# Verify Node.js
-if (-not (Get-Command "node" -ErrorAction SilentlyContinue)) {
-    Write-Host "❌ Node.js is required (>= 18.0.0). Please install Node.js first: https://nodejs.org" -ForegroundColor Red
+if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
+    Write-Error "❌ Node.js 18+ is required. Please install Node.js first from https://nodejs.org/"
     exit 1
 }
 
-Write-Host "📦 Installing @zeroshield/cli globally via npm..." -ForegroundColor Yellow
-npm install -g @zeroshield/cli
+npm install -g @debugforge/cli
 
-Write-Host "✅ ZeroShield successfully installed!" -ForegroundColor Green
-Write-Host "🚀 Run 'zeroshield --help' or 'zeroshield scan .' to get started." -ForegroundColor Cyan
+Write-Host "✅ DebugForge installed successfully!" -ForegroundColor Green
+Write-Host "🚀 Run 'debugforge diagnose' or 'debugforge watch' to get started." -ForegroundColor Cyan

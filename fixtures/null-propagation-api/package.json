@@ -1,0 +1,12 @@
+{
+  "name": "null-propagation-api",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/**/*.test.js",
+    "build": "tsc"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}

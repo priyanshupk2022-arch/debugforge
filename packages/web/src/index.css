@@ -3,43 +3,7 @@
 @tailwind utilities;
 
 @layer base {
-  html {
-    font-family: 'Archivo', sans-serif;
-    scroll-behavior: smooth;
-  }
-
   body {
-    background-color: #f7f7f9;
-    color: #17171b;
+    @apply bg-[#FAFAFA] text-slate-900;
   }
-
-  /* Accessibility keyboard focus visible */
-  :focus-visible {
-    outline: 2px solid #e5533c;
-    outline-offset: 2px;
-  }
-}
-
-/* Custom scrollbar */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: #f0f0f5;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #d4d4dc;
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #a8a8b4;
-}
-
-/* Monospace code styling */
-pre, code {
-  font-family: 'Fira Code', monospace;
 }

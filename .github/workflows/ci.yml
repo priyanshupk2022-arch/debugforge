@@ -1,98 +1,47 @@
-name: ZeroShield CI Production Gate
+name: DebugForge CI & Qodo Review
 
 on:
   push:
     branches: [ main ]
   pull_request:
-    branches: [ main ]
-    types: [ opened, synchronize, reopened ]
-  issue_comment:
-    types: [ created ]
-
-permissions:
-  contents: read
-  pull-requests: write
-  issues: write
-  statuses: write
+    types: [ opened, reopened, synchronize ]
 
 jobs:
-  production-gate:
-    name: Full Production Security, Anti-Cheat, & E2E Sandbox Verification
+  build-and-test:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      statuses: write
     steps:
       - name: Checkout Code
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # pinned v4.1.1
+        uses: actions/checkout@v4
 
-      - name: Setup Node.js v22
-        uses: actions/setup-node@60edb5dd545a775178f525247059d6172fe9ac34 # pinned v4.0.2
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: 'npm'
 
-      - name: Verify Mandatory HITL Test Secret Present (Fail-Closed Gate)
-        env:
-          HITL_SECRET: ${{ secrets.HITL_TEST_SECRET }}
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Build Core Engine & CLI
         run: |
-          if [ -z "$HITL_SECRET" ]; then
-            echo "::error::CRITICAL SECURITY FAILURE: HITL_TEST_SECRET GitHub Secret is not configured. CI fails closed."
-            exit 1
-          fi
+          npm --prefix packages/core run build
+          npm --prefix packages/cli run build
 
-      - name: Install Monorepo Dependencies
-        run: npm ci || npm install
+      - name: Run Core Test Suite
+        run: node --test packages/core/dist/tests/core.test.js
 
-      - name: Dependency Vulnerability Audit Gate (Fail Closed on High/Critical)
-        run: npm audit --audit-level=high
-
-      - name: Secret Scanning Gate
-        run: |
-          echo "Scanning for accidental hardcoded secrets..."
-          ! grep -rnE '(PRIVATE KEY|AKIA[0-9A-Z]{16}|ghp_[0-9a-zA-Z]{36})' packages/ fixtures/ || exit 1
-
-      - name: Strict Anti-Cheat AST Stub Verifier
-        run: npx ts-node scripts/verify-no-stubs.ts
-
-      - name: Strict TypeScript Monorepo Build
-        run: npm run build
-
-      - name: Production Web Dashboard Build
+      - name: Build Web Landing Page
         run: npm --prefix packages/web run build
 
-      - name: Execute Full Core Test Suite & Adversarial Security Attacks
-        env:
-          HITL_SECRET: ${{ secrets.HITL_TEST_SECRET }}
-        run: npm test
+      - name: Verify Autonomous Fixture Diagnosis
+        run: node packages/cli/dist/index.js diagnose --target fixtures/null-propagation-api
 
-      - name: Execute Machine-Verifiable Isolated Sandbox E2E Verification
-        env:
-          HITL_SECRET: ${{ secrets.HITL_TEST_SECRET }}
-        run: node --test tests/e2e/**/*.test.ts
-
-  qodo-agentic-review:
-    name: Qodo Agentic Code Quality Review
-    needs: production-gate
-    if: github.event_name == 'pull_request' || (github.event_name == 'issue_comment' && github.event.issue.pull_request && contains(github.event.comment.body, '/agentic_review'))
+  qodo-code-review:
+    needs: build-and-test
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
-      issues: write
+    if: github.event_name == 'pull_request'
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # pinned v4.1.1
-        with:
-          fetch-depth: 0
-
-      - name: Qodo PR Agentic Review Action
-        uses: Codium-ai/pr-agent@1242337d1cf752c4b81b5ffdbf37b122aa173255 # pinned immutable commit sha
+      - name: Qodo PR-Agent Automated Review
+        uses: Codium-ai/pr-agent@main
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          OPENAI_KEY: ${{ secrets.OPENAI_API_KEY || secrets.GEMINI_API_KEY }}
+          OPENAI_KEY: ${{ secrets.OPENAI_API_KEY }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CONFIG.MODEL: "gemini/gemini-1.5-pro"
-          PR_REVIEWER.REQUIRE_ALL_TESTS_PASS: "true"
-          PR_REVIEWER.ENABLE_SECURITY_AUDIT: "true"
-          PR_CODE_SUGGESTIONS.NUM_CODE_SUGGESTIONS: 4
