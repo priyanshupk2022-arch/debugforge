@@ -1,17 +1,31 @@
-import express from 'express';
-import { webhookHandler } from './routes/webhook.js';
+import express, { type Express } from 'express';
+import { Server } from 'http';
+import { webhookHandler } from './routes/webhook.ts';
 
-const app = express();
-app.use(express.json());
+export function createApp(): Express {
+  const app = express();
+  app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
 
-app.post('/api/webhook', webhookHandler);
+  app.get('/health', (_req, res) => {
+    res.status(200).json({ status: 'ok', service: 'vulnerable-ssrf-app' });
+  });
 
-const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+  app.all('/api/webhook', webhookHandler);
+  app.all('/api/report', webhookHandler);
 
-if (process.env.NODE_ENV !== 'test') {
-  app.listen(port, () => {
-    console.log(`Vulnerable SSRF App listening on port ${port}`);
+  return app;
+}
+
+export function startServer(port: number = 3003): Promise<Server> {
+  const app = createApp();
+  return new Promise((resolve) => {
+    const server = app.listen(port, () => {
+      console.log(`Vulnerable SSRF App running on port ${port}`);
+      resolve(server);
+    });
   });
 }
 
-export { app };
+const port = Number(process.env.PORT) || 3003;
+startServer(port);

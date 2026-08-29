@@ -1,19 +1,13 @@
 {
   "name": "vulnerable-path-traversal",
   "version": "1.0.0",
-  "description": "Vulnerable Microservice Fixture for Directory Traversal (CWE-22)",
-  "main": "dist/server.js",
+  "type": "module",
+  "private": true,
   "scripts": {
-    "build": "tsc",
-    "start": "node dist/server.js",
-    "test": "node --test dist/tests/app.test.js"
+    "test": "npx ts-node --esm tests/app.test.ts"
   },
   "dependencies": {
-    "express": "^4.21.2"
-  },
-  "devDependencies": {
-    "@types/express": "^5.0.0",
-    "@types/node": "^22.13.4",
-    "typescript": "^5.7.3"
+    "express": "^4.21.2",
+    "zod": "^3.24.2"
   }
 }

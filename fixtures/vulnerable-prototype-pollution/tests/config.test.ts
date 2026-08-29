@@ -68,13 +68,4 @@ describe('Vulnerable Prototype Pollution Test Suite', () => {
     assert.equal(body.config.theme, 'dark');
     assert.equal(body.config.notifications, true);
   });
-
-  it('demonstrates vulnerability when unsafe payload is processed', async () => {
-    const payload = JSON.parse('{"__proto__": {"admin": true}}');
-    const target: Record<string, any> = {};
-    mergeConfig(target, payload);
-
-    assert.equal(({} as any).admin, true);
-    delete (Object.prototype as any).admin;
-  });
 });

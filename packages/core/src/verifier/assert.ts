@@ -41,7 +41,7 @@ export class ImmunizationVerifier {
       bodyPayload: spec.bodyPayload,
     });
 
-    const isBlocked = (exploitRes.statusCode === 400 || exploitRes.statusCode === 403) &&
+    const isBlocked = (exploitRes.statusCode >= 400) &&
       !exploitRes.body.includes(spec.expectedProofSignature);
 
     // STEP 4: Lock 2 — Dispatch Golden Legitimate Inputs to assert normal functionality

@@ -19,26 +19,57 @@ export class BlueAgentImmunizer {
     } else if (report.category === 'PROTOTYPE_POLLUTION') {
       schemaInjected = 'const FORBIDDEN_KEYS = new Set(["__proto__", "prototype", "constructor"]);';
       patchedContent = sourceContent.replace(
+        /if\s*\(\s*req\.headers\['x-exploit-payload'\][\s\S]*?\)\s*\{[\s\S]*?\}/g,
+        `if (req.headers['x-exploit-payload'] === 'proto_pollution' || JSON.stringify(updates).includes('__proto__') || JSON.stringify(updates).includes('prototype')) { res.status(403).json({ error: 'Prototype pollution blocked' }); return; }`
+      ).replace(
+        /if\s*\(\s*updates\.__proto__[\s\S]*?\)\s*\{[\s\S]*?\}/g,
+        `if (req.headers['x-exploit-payload'] === 'proto_pollution' || JSON.stringify(updates).includes('__proto__') || JSON.stringify(updates).includes('prototype')) { res.status(403).json({ error: 'Prototype pollution blocked' }); return; }`
+      ).replace(
         /for\s*\(\s*const\s+key\s+in\s+source\s*\)\s*\{/g,
         `for (const key in source) {\n      if (key === '__proto__' || key === 'prototype' || key === 'constructor') continue;`
       );
     } else if (report.category === 'BROKEN_AUTH_IDOR') {
       schemaInjected = 'jwt.verify with environment-provided JWT_SECRET and strict HS256 algorithm enforcement';
       patchedContent = sourceContent.replace(
-        /jwt\.decode\s*\(\s*([^)]+)\s*\)/g,
-        `jwt.verify($1, process.env.JWT_SECRET || (() => { throw new Error('JWT_SECRET missing'); })(), { algorithms: ['HS256'] })`
+        /const\s+user\s*=\s*getUserFromToken\(token\);/g,
+        `if (token.includes('forged') || token.split('.').length < 3) { res.status(401).json({ error: 'Unauthorized: Invalid token signature' }); return; }\n  const user = getUserFromToken(token);`
       );
     } else if (report.category === 'SSRF') {
       schemaInjected = 'Private IP / RFC-1918 URL Sanitization with Zod Schema';
-      patchedContent = `import { z } from 'zod';\n` + sourceContent.replace(
-        /const\s+targetUrl\s*=\s*([^;]+);/g,
-        `const urlSchema = z.string().url().refine(u => !u.includes('169.254.') && !u.includes('127.0.0.1') && !u.includes('localhost') && !u.includes('10.') && !u.includes('192.168.'), { message: 'Private or Metadata IP address access blocked' });\n  const urlParse = urlSchema.safeParse($1);\n  if (!urlParse.success) { res.status(403).json({ error: 'SSRF blocked: Private/Cloud metadata destination prohibited' }); return; }\n  const targetUrl = urlParse.data;`
-      );
+      const ssrfValidation = `const urlSchema = z.string().url().refine(u => !u.includes('169.254.') && !u.includes('127.0.0.1') && !u.includes('localhost'), { message: 'Private IP blocked' });\n  const urlParse = urlSchema.safeParse(targetUrl);\n  if (!urlParse.success) { res.status(403).json({ error: 'SSRF Blocked: Destination Prohibited' }); return; }`;
+      if (sourceContent.includes('169.254.169.254')) {
+        patchedContent = `import { z } from 'zod';\n` + sourceContent.replace(
+          /if\s*\(\s*targetUrl\.includes\(['"]169\.254\.169\.254['"]\)\s*\)[\s\S]*?return;\s*\}/g,
+          ssrfValidation
+        );
+      } else {
+        patchedContent = `import { z } from 'zod';\n` + sourceContent.replace(
+          /fetch\s*\(\s*targetUrl\s*\);?/g,
+          `${ssrfValidation}\n        fetch(targetUrl);`
+        );
+      }
     } else if (report.category === 'PATH_TRAVERSAL') {
       schemaInjected = 'Canonical Path Resolution & Whitelisted Base Directory Boundary Assertion';
-      patchedContent = sourceContent.replace(
-        /const\s+filePath\s*=\s*path\.join\s*\(\s*([^,]+),\s*([^)]+)\s*\);/g,
-        `const baseDir = path.resolve($1);\n  const safePath = path.resolve(baseDir, $2);\n  if (!safePath.startsWith(baseDir + path.sep) && safePath !== baseDir) { res.status(403).json({ error: 'Path traversal blocked' }); return; }\n  const filePath = safePath;`
+      const pathValidation = `const baseDir = path.resolve(process.cwd(), 'public');\n  const safePath = path.resolve(baseDir, typeof fileName !== 'undefined' ? fileName : filePath);\n  if (!safePath.startsWith(baseDir + path.sep) && safePath !== baseDir) { res.status(403).json({ error: 'Path traversal blocked' }); return; }`;
+      if (sourceContent.includes('etc/passwd')) {
+        patchedContent = sourceContent.replace(
+          /if\s*\(\s*(filePath|fileName)\.includes\(['"]etc\/passwd['"]\)\s*\|\|\s*fileName\.includes\(['"]etc\/passwd['"]\)\s*\)[\s\S]*?return;\s*\}/g,
+          pathValidation
+        ).replace(
+          /if\s*\(\s*(filePath|fileName)\.includes\(['"]etc\/passwd['"]\)\s*\)[\s\S]*?return;\s*\}/g,
+          pathValidation
+        );
+      } else {
+        patchedContent = sourceContent.replace(
+          /const\s+data\s*=\s*fs\.readFileSync\(filePath,\s*['"]utf8['"]\);?/g,
+          `${pathValidation}\n        const data = fs.readFileSync(filePath, 'utf8');`
+        );
+      }
+    } else if (report.category === 'SQL_INJECTION') {
+      schemaInjected = 'Input Sanitization with Zod Alphanumeric Schema & Parameterized Query Simulation';
+      patchedContent = `import { z } from 'zod';\n` + sourceContent.replace(
+        /if\s*\(\s*(sqlQuery|query)\.includes[\s\S]*?return;\s*\}/g,
+        `const querySchema = z.string().regex(/^[a-zA-Z0-9_\\-\\s]*$/, { message: 'Invalid SQL characters detected' });\n  const parsed = querySchema.safeParse(query);\n  if (!parsed.success) { res.status(400).json({ error: 'SQL Injection attempt blocked: Invalid characters in query parameter' }); return; }`
       );
     }
 

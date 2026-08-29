@@ -1,18 +1,31 @@
-import express from 'express';
-import { fileViewerHandler } from './routes/file.js';
+import express, { type Express } from 'express';
+import { Server } from 'http';
+import { fileViewerHandler } from './routes/file.ts';
 
-const app = express();
-app.use(express.json());
+export function createApp(): Express {
+  const app = express();
+  app.use(express.json());
+  app.use(express.urlencoded({ extended: true }));
 
-app.post('/api/file', fileViewerHandler);
-app.get('/api/file', fileViewerHandler);
+  app.get('/health', (_req, res) => {
+    res.status(200).json({ status: 'ok', service: 'vulnerable-path-traversal' });
+  });
 
-const port = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
+  app.all('/api/file', fileViewerHandler);
+  app.all('/api/report', fileViewerHandler);
 
-if (process.env.NODE_ENV !== 'test') {
-  app.listen(port, () => {
-    console.log(`Vulnerable Path Traversal App listening on port ${port}`);
+  return app;
+}
+
+export function startServer(port: number = 3004): Promise<Server> {
+  const app = createApp();
+  return new Promise((resolve) => {
+    const server = app.listen(port, () => {
+      console.log(`Vulnerable Path Traversal App running on port ${port}`);
+      resolve(server);
+    });
   });
 }
 
-export { app };
+const port = Number(process.env.PORT) || 3004;
+startServer(port);

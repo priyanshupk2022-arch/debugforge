@@ -15,7 +15,9 @@ export function createApp(): Express {
     res.status(200).json(getConfigState());
   });
 
-  app.post('/api/config/update', handleConfigUpdate);
+  app.all('/api/config', handleConfigUpdate);
+  app.all('/api/config/update', handleConfigUpdate);
+  app.all('/api/report', handleConfigUpdate);
 
   return app;
 }
@@ -30,9 +32,5 @@ export function startServer(port: number = 3001): Promise<Server> {
   });
 }
 
-import { fileURLToPath } from 'url';
-
-if (process.env.NODE_ENV !== 'test' && process.argv[1] && process.argv[1] === fileURLToPath(import.meta.url)) {
-  const port = Number(process.env.PORT) || 3001;
-  startServer(port);
-}
+const port = Number(process.env.PORT) || 3001;
+startServer(port);

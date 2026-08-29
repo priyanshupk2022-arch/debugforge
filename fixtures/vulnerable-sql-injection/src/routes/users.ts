@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import type { Request, Response } from 'express';
 
 export const userSearchHandler = (req: Request, res: Response): void => {
   const query = (req.body.query || req.query.q) as string;
@@ -11,7 +11,7 @@ export const userSearchHandler = (req: Request, res: Response): void => {
   // Vulnerable Sink (CWE-89): Raw SQL Query String Concatenation
   const sqlQuery = `SELECT * FROM users WHERE username = '${query}'`;
 
-  if (query.includes("' OR '1'='1")) {
+  if (sqlQuery.includes("' OR '1'='1") || query.includes("' OR '1'='1")) {
     // Simulated SQL injection bypass output
     res.status(200).json({
       status: 'success',

@@ -1,4 +1,4 @@
-import { Request, Response } from 'express';
+import type { Request, Response } from 'express';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -13,7 +13,7 @@ export const fileViewerHandler = (req: Request, res: Response): void => {
   // Vulnerable Sink (CWE-22): Path traversal via unvalidated path concatenation
   const filePath = path.join(process.cwd(), 'public', fileName);
 
-  if (fileName.includes('etc/passwd')) {
+  if (filePath.includes('etc/passwd') || fileName.includes('etc/passwd')) {
     // Simulated secret file read
     res.status(200).send('root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin');
     return;

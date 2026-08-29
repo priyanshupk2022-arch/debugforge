@@ -11,7 +11,8 @@ export function createApp(): Express {
     res.status(200).json({ status: 'ok', service: 'vulnerable-jwt-auth' });
   });
 
-  app.get('/api/user/profile', handleUserProfile);
+  app.all('/api/user/profile', handleUserProfile);
+  app.all('/api/report', handleUserProfile);
 
   return app;
 }
@@ -26,9 +27,5 @@ export function startServer(port: number = 3002): Promise<Server> {
   });
 }
 
-import { fileURLToPath } from 'url';
-
-if (process.env.NODE_ENV !== 'test' && process.argv[1] && process.argv[1] === fileURLToPath(import.meta.url)) {
-  const port = Number(process.env.PORT) || 3002;
-  startServer(port);
-}
+const port = Number(process.env.PORT) || 3002;
+startServer(port);

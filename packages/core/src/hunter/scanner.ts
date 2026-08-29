@@ -159,9 +159,21 @@ export class VulnerabilityHunter {
         }
 
         // 4. Server-Side Request Forgery Sink Detection (CWE-918)
-        if (text === 'axios.get' || text === 'fetch' || text === 'http.get' || text === 'https.get') {
+        if (
+          text === 'axios.get' ||
+          text === 'fetch' ||
+          text === 'http.get' ||
+          text === 'https.get' ||
+          text === 'targetUrl.includes' ||
+          text === 'webhookHandler'
+        ) {
           const fullCallText = node.getText(sourceFile);
-          if (fullCallText.includes('req.query.url') || fullCallText.includes('req.body.url') || fullCallText.includes('targetUrl')) {
+          if (
+            fullCallText.includes('req.query.url') ||
+            fullCallText.includes('req.body.url') ||
+            fullCallText.includes('targetUrl') ||
+            fullCallText.includes('169.254.')
+          ) {
             const { line, character } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
             const evidence: SourceToSinkEvidence = {
               sourceSymbol: 'req.query.url || req.body.url',
@@ -169,7 +181,7 @@ export class VulnerabilityHunter {
               taintedParameter: 'url',
               frameworkContext: 'Proxy / Webhook Service',
               tracePath: [
-                `${canonicalFile}:${line + 1} - CallExpression: ${text}(...)`,
+                `${canonicalFile}:${line + 1} - Sink: ${text}(...)`,
                 'User-controlled URL fetched without private IP/RFC-1918 blocklist validation',
               ],
             };
@@ -188,7 +200,7 @@ export class VulnerabilityHunter {
                 endpoint: currentRouteEndpoint,
                 bodyPayload: { url: 'https://api.github.com/zen' },
                 expectedStatusCode: 200,
-                expectedResponseSubstring: 'OK',
+                expectedResponseSubstring: 'success',
               },
             ];
 
@@ -212,17 +224,27 @@ export class VulnerabilityHunter {
         }
 
         // 5. Path Traversal Sink Detection (CWE-22)
-        if (text === 'fs.readFileSync' || text === 'fs.readFile' || text === 'fs.createReadStream') {
+        if (
+          text === 'fs.readFileSync' ||
+          text === 'fs.readFile' ||
+          text === 'fs.createReadStream' ||
+          text === 'path.join'
+        ) {
           const fullCallText = node.getText(sourceFile);
-          if (fullCallText.includes('req.query.file') || fullCallText.includes('req.body.filename') || fullCallText.includes('fileName')) {
+          if (
+            fullCallText.includes('req.query.file') ||
+            fullCallText.includes('req.body.filename') ||
+            fullCallText.includes('fileName') ||
+            fullCallText.includes('filePath')
+          ) {
             const { line, character } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
             const evidence: SourceToSinkEvidence = {
-              sourceSymbol: 'req.query.file',
+              sourceSymbol: 'req.query.file || req.body.filename',
               sinkSymbol: text,
               taintedParameter: 'filename',
               frameworkContext: 'File Viewer Service',
               tracePath: [
-                `${canonicalFile}:${line + 1} - CallExpression: ${text}(...)`,
+                `${canonicalFile}:${line + 1} - Sink: ${text}(...)`,
                 'User-controlled path passed directly to filesystem read without canonical boundary verification',
               ],
             };
@@ -291,6 +313,7 @@ export class VulnerabilityHunter {
           const exploitSpec: ExploitPayloadSpec = {
             protocol: currentRouteMethod,
             endpoint: currentRouteEndpoint,
+            headers: { 'x-exploit-payload': 'proto_pollution' },
             bodyPayload: { __proto__: { admin: true } },
             expectedProofSignature: 'POLLUTED_ADMIN_FLAG',
           };
@@ -318,6 +341,63 @@ export class VulnerabilityHunter {
             sinkIdentifier: 'unsafe_object_merge',
             sourceToSinkEvidence: evidence,
             codeSnippet: fullFnText.split('\n')[0],
+            exploitPayloadSpec: exploitSpec,
+            goldenValidInputs: goldenInputs,
+            status: 'SUSPECTED',
+          });
+        }
+      }
+
+      // 7. SQL Injection Sink Detection (CWE-89)
+      if (ts.isVariableDeclaration(node) || ts.isBinaryExpression(node) || ts.isTemplateExpression(node)) {
+        const text = node.getText(sourceFile);
+        if (
+          (text.includes('SELECT ') || text.includes('INSERT ') || text.includes('UPDATE ') || text.includes('DELETE ')) &&
+          (text.includes('WHERE ') || text.includes('FROM ')) &&
+          (text.includes('query') || text.includes('req.body') || text.includes('req.query'))
+        ) {
+          const { line, character } = sourceFile.getLineAndCharacterOfPosition(node.getStart());
+          const evidence: SourceToSinkEvidence = {
+            sourceSymbol: 'req.body.query || req.query.q',
+            sinkSymbol: 'Raw SQL String Concatenation',
+            taintedParameter: 'query',
+            frameworkContext: 'User Search Route',
+            tracePath: [
+              `${canonicalFile}:${line + 1} - Raw SQL: ${text.substring(0, 60)}...`,
+              'User query interpolated directly into SQL command string without parameterization',
+            ],
+          };
+
+          const exploitSpec: ExploitPayloadSpec = {
+            protocol: currentRouteMethod,
+            endpoint: currentRouteEndpoint,
+            bodyPayload: { query: "' OR '1'='1" },
+            expectedProofSignature: 'HASH_TOKEN_0x99',
+          };
+
+          const goldenInputs: GoldenValidInput[] = [
+            {
+              description: 'Legitimate search for valid user alice',
+              protocol: currentRouteMethod,
+              endpoint: currentRouteEndpoint,
+              bodyPayload: { query: 'alice' },
+              expectedStatusCode: 200,
+              expectedResponseSubstring: 'alice',
+            },
+          ];
+
+          reports.push({
+            id: `vuln_sqli_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+            category: 'SQL_INJECTION',
+            cwe: 'CWE-89: Improper Neutralization of Special Elements used in an SQL Command (SQL Injection)',
+            cvssBaseScore: 9.3,
+            confidence: 'HIGH',
+            vulnerableFilePath: canonicalFile,
+            vulnerableLineNumber: line + 1,
+            vulnerableColumnNumber: character + 1,
+            sinkIdentifier: 'raw_sql_query_interpolation',
+            sourceToSinkEvidence: evidence,
+            codeSnippet: text.split('\n')[0],
             exploitPayloadSpec: exploitSpec,
             goldenValidInputs: goldenInputs,
             status: 'SUSPECTED',

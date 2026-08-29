@@ -1,5 +1,4 @@
-import { Request, Response } from 'express';
-import * as http from 'http';
+import type { Request, Response } from 'express';
 
 export const webhookHandler = async (req: Request, res: Response): Promise<void> => {
   const targetUrl = req.body.url as string;

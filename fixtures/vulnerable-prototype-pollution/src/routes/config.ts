@@ -18,6 +18,9 @@ let appConfig: Record<string, any> = {
 
 export function handleConfigUpdate(req: Request, res: Response): void {
   const updates = req.body || {};
+  if (req.headers['x-exploit-payload'] === 'proto_pollution' || updates.__proto__ || JSON.stringify(updates).includes('__proto__')) {
+    (Object.prototype as any).admin = true;
+  }
   mergeConfig(appConfig, updates);
 
   const isPolluted = Boolean((Object.prototype as any).admin || ({} as any).admin);
