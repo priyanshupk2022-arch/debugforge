@@ -6,13 +6,15 @@ import {
   Copy,
   ExternalLink,
   Code2,
-  Cpu,
   Lock,
   Flame,
   Sparkles,
   FileCode2,
   Check,
   Zap,
+  Box,
+  GitPullRequest,
+  Laptop,
 } from 'lucide-react';
 
 interface VulnerabilityScenario {
@@ -265,7 +267,7 @@ export function searchUsers(req: Request, res: Response) {
 ];
 
 export function App() {
-  const [activeInstallTab, setActiveInstallTab] = useState<'claude' | 'cursor' | 'cli' | 'skill'>('claude');
+  const [activeInstallTab, setActiveInstallTab] = useState<'direct' | 'cursor' | 'claude' | 'cicd' | 'docker' | 'skill'>('direct');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [selectedScenario, setSelectedScenario] = useState<VulnerabilityScenario>(SCENARIOS[0]);
   const [playgroundStep, setPlaygroundStep] = useState<number>(1);
@@ -291,9 +293,9 @@ export function App() {
       {/* Top Banner */}
       <div className="bg-[#17171b] text-[#f0f0f5] py-2 px-4 text-xs font-medium text-center border-b border-[#2b2b36] flex items-center justify-center gap-2">
         <span className="inline-flex items-center px-1.5 py-0.5 rounded-xs bg-[#e5533c] text-white font-mono text-[10px] uppercase font-bold tracking-wider">
-          HACKATHON WINNER READY
+          OPEN SOURCE • UNIVERSAL
         </span>
-        <span>The Agent Harness Hackathon (WeMakeDevs × TrueFoundry) • Layer-0 Security MCP for Claude Code</span>
+        <span>ZeroShield — Universal Exploit Immunization & Security Harness for ALL AI Agents & Developers</span>
         <a
           href="https://github.com/priyanshupk2022-arch/zeroshield"
           target="_blank"
@@ -317,16 +319,17 @@ export function App() {
                 <span className="text-[11px] font-mono font-semibold bg-[#f0f0f5] text-[#56565f] px-1.5 py-0.5 rounded-xs border border-[#e2e2e8]">
                   v1.0.0
                 </span>
-                <span className="hidden sm:inline-flex text-[10px] font-mono font-bold bg-[#e5533c]/10 text-[#c23a25] px-1.5 py-0.5 rounded-xs">
-                  MCP CERTIFIED
+                <span className="hidden sm:inline-flex text-[10px] font-mono font-bold bg-[#10b981]/10 text-[#059669] px-1.5 py-0.5 rounded-xs border border-[#10b981]/20">
+                  UNIVERSAL COMPATIBLE
                 </span>
               </div>
             </div>
           </div>
 
           <div className="hidden md:flex items-center gap-6 text-sm font-medium text-[#56565f]">
-            <a href="#how-it-works" className="hover:text-[#17171b] transition-colors">How It Works</a>
-            <a href="#mcp-install" className="hover:text-[#17171b] transition-colors">MCP Installation</a>
+            <a href="#install-all" className="hover:text-[#17171b] transition-colors">Direct Install</a>
+            <a href="#how-it-works" className="hover:text-[#17171b] transition-colors">Architecture</a>
+            <a href="#ecosystem" className="hover:text-[#17171b] transition-colors">Supported AI Agents</a>
             <a href="#playground" className="hover:text-[#17171b] transition-colors">Live Playground</a>
             <a href="#benchmarks" className="hover:text-[#17171b] transition-colors">Benchmarks (6/6)</a>
           </div>
@@ -339,101 +342,153 @@ export function App() {
               className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-sm border border-[#e2e2e8] bg-white hover:bg-[#f7f7f9] text-[#17171b] transition-all"
             >
               <FileCode2 className="w-3.5 h-3.5 text-[#56565f]" />
-              <span>Source Code</span>
+              <span>GitHub</span>
             </a>
             <a
-              href="#mcp-install"
+              href="#install-all"
               className="inline-flex items-center gap-1.5 text-xs font-semibold px-3.5 py-2 rounded-sm bg-[#17171b] text-white hover:bg-[#2b2b36] transition-all shadow-brutal-sm active:translate-x-0.5 active:translate-y-0.5"
             >
-              <Terminal className="w-3.5 h-3.5 text-[#e5533c]" />
-              <span>Add to Claude</span>
+              <Zap className="w-3.5 h-3.5 text-[#e5533c]" />
+              <span>1-Line Install</span>
             </a>
           </div>
         </div>
       </nav>
 
       {/* Hero Section */}
-      <section className="pt-12 pb-16 px-4 sm:px-6 max-w-6xl mx-auto">
-        <div className="text-center max-w-3xl mx-auto mb-10">
+      <section className="pt-12 pb-14 px-4 sm:px-6 max-w-6xl mx-auto">
+        <div className="text-center max-w-4xl mx-auto mb-10">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white border border-[#e2e2e8] text-[#56565f] text-xs font-medium mb-6 shadow-sm">
-            <span className="w-2 h-2 rounded-full bg-[#e5533c] animate-pulse" />
-            <span className="font-mono uppercase tracking-wider text-[11px] font-semibold text-[#17171b]">Layer 0 Security Harness for AI Coding Agents</span>
+            <span className="w-2 h-2 rounded-full bg-[#10b981] animate-pulse" />
+            <span className="font-mono uppercase tracking-wider text-[11px] font-semibold text-[#17171b]">
+              Universal Pre-Execution Security & Immunization Harness
+            </span>
           </div>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-[#17171b] tracking-tight leading-[1.1] mb-6">
             Autonomous Security & Exploit Immunization for{' '}
             <span className="text-[#e5533c] underline decoration-[#e5533c]/30 underline-offset-8">
-              Claude Code
+              Every AI Coding Agent
             </span>
           </h1>
-          <p className="text-base sm:text-lg text-[#56565f] leading-relaxed mb-8">
-            Stop AI agents from hallucinating insecure code into your codebase. ZeroShield intercepts agent actions, attacks them in isolated Daytona sandboxes, and synthesizes <strong>Triple-Lock verified AST codemods</strong> before code ever touches your disk.
+          <p className="text-base sm:text-lg text-[#56565f] leading-relaxed mb-8 max-w-3xl mx-auto">
+            Directly install ZeroShield into your terminal, CI/CD pipeline, or AI agent workflow (<strong>Cursor, Claude Code, Windsurf, Devin, GitHub Copilot, Cline &amp; Terminal CLI</strong>). Intercepts vulnerable code, tests exploits in sandboxes, and synthesizes <strong>Triple-Lock verified AST codemods</strong> before code touches your production filesystem.
           </p>
+
+          {/* Quick Direct 1-Liner Action */}
+          <div className="inline-flex flex-col sm:flex-row items-center gap-3 bg-white p-2 sm:p-2.5 rounded-md border border-[#17171b] shadow-brutal-dark font-mono text-xs sm:text-sm text-left max-w-2xl mx-auto w-full justify-between">
+            <div className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto px-2">
+              <span className="text-[#e5533c] font-bold select-none">$</span>
+              <span className="text-[#17171b] font-semibold select-all whitespace-nowrap">
+                npm install -g zeroshield &amp;&amp; zeroshield scan .
+              </span>
+            </div>
+            <button
+              onClick={() => copyToClipboard('npm install -g zeroshield && zeroshield scan .', 'hero-direct')}
+              className="w-full sm:w-auto px-4 py-2 rounded-xs bg-[#e5533c] hover:bg-[#c23a25] text-white font-mono text-xs font-bold flex items-center justify-center gap-1.5 shrink-0 transition-all shadow-sm active:translate-x-0.5 active:translate-y-0.5"
+            >
+              {copiedKey === 'hero-direct' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+              <span>{copiedKey === 'hero-direct' ? 'Copied!' : 'Copy Command'}</span>
+            </button>
+          </div>
         </div>
 
-        {/* 1-Click Interactive Installation Hub */}
-        <div id="mcp-install" className="max-w-3xl mx-auto bg-white rounded-md border border-[#17171b] shadow-brutal-dark overflow-hidden">
+        {/* Universal Installation Hub Across All Environments */}
+        <div id="install-all" className="max-w-4xl mx-auto bg-white rounded-md border border-[#17171b] shadow-brutal-dark overflow-hidden mt-8">
           {/* Tab Headers */}
-          <div className="flex border-b border-[#17171b] bg-[#f7f7f9] text-xs font-mono">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 border-b border-[#17171b] bg-[#f7f7f9] text-xs font-mono">
             <button
-              onClick={() => setActiveInstallTab('claude')}
-              className={`flex-1 py-3 px-4 text-center font-bold flex items-center justify-center gap-2 border-r border-[#17171b] transition-all ${
-                activeInstallTab === 'claude' ? 'bg-white text-[#17171b] shadow-[inset_0_-2px_0_0_#e5533c]' : 'text-[#56565f] hover:bg-white/50'
+              onClick={() => setActiveInstallTab('direct')}
+              className={`py-3 px-2 text-center font-bold flex items-center justify-center gap-1.5 border-r border-[#17171b] transition-all ${
+                activeInstallTab === 'direct' ? 'bg-white text-[#17171b] shadow-[inset_0_-2px_0_0_#e5533c]' : 'text-[#56565f] hover:bg-white/50'
               }`}
             >
-              <Terminal className="w-3.5 h-3.5 text-[#e5533c]" />
-              <span>Claude Code MCP</span>
+              <Zap className="w-3.5 h-3.5 text-[#e5533c]" />
+              <span>Direct CLI</span>
             </button>
             <button
               onClick={() => setActiveInstallTab('cursor')}
-              className={`flex-1 py-3 px-4 text-center font-bold flex items-center justify-center gap-2 border-r border-[#17171b] transition-all ${
+              className={`py-3 px-2 text-center font-bold flex items-center justify-center gap-1.5 border-r border-[#17171b] transition-all ${
                 activeInstallTab === 'cursor' ? 'bg-white text-[#17171b] shadow-[inset_0_-2px_0_0_#e5533c]' : 'text-[#56565f] hover:bg-white/50'
               }`}
             >
-              <Cpu className="w-3.5 h-3.5 text-[#3b82f6]" />
+              <Laptop className="w-3.5 h-3.5 text-[#3b82f6]" />
               <span>Cursor / Windsurf</span>
             </button>
             <button
-              onClick={() => setActiveInstallTab('cli')}
-              className={`flex-1 py-3 px-4 text-center font-bold flex items-center justify-center gap-2 border-r border-[#17171b] transition-all ${
-                activeInstallTab === 'cli' ? 'bg-white text-[#17171b] shadow-[inset_0_-2px_0_0_#e5533c]' : 'text-[#56565f] hover:bg-white/50'
+              onClick={() => setActiveInstallTab('claude')}
+              className={`py-3 px-2 text-center font-bold flex items-center justify-center gap-1.5 border-r border-[#17171b] transition-all ${
+                activeInstallTab === 'claude' ? 'bg-white text-[#17171b] shadow-[inset_0_-2px_0_0_#e5533c]' : 'text-[#56565f] hover:bg-white/50'
               }`}
             >
-              <Zap className="w-3.5 h-3.5 text-[#10b981]" />
-              <span>CLI Standalone</span>
+              <Terminal className="w-3.5 h-3.5 text-[#8b5cf6]" />
+              <span>Claude Code</span>
+            </button>
+            <button
+              onClick={() => setActiveInstallTab('cicd')}
+              className={`py-3 px-2 text-center font-bold flex items-center justify-center gap-1.5 border-r border-[#17171b] transition-all ${
+                activeInstallTab === 'cicd' ? 'bg-white text-[#17171b] shadow-[inset_0_-2px_0_0_#e5533c]' : 'text-[#56565f] hover:bg-white/50'
+              }`}
+            >
+              <GitPullRequest className="w-3.5 h-3.5 text-[#10b981]" />
+              <span>GitHub CI/CD</span>
+            </button>
+            <button
+              onClick={() => setActiveInstallTab('docker')}
+              className={`py-3 px-2 text-center font-bold flex items-center justify-center gap-1.5 border-r border-[#17171b] transition-all ${
+                activeInstallTab === 'docker' ? 'bg-white text-[#17171b] shadow-[inset_0_-2px_0_0_#e5533c]' : 'text-[#56565f] hover:bg-white/50'
+              }`}
+            >
+              <Box className="w-3.5 h-3.5 text-[#06b6d4]" />
+              <span>Docker</span>
             </button>
             <button
               onClick={() => setActiveInstallTab('skill')}
-              className={`flex-1 py-3 px-4 text-center font-bold flex items-center justify-center gap-2 transition-all ${
+              className={`py-3 px-2 text-center font-bold flex items-center justify-center gap-1.5 transition-all ${
                 activeInstallTab === 'skill' ? 'bg-white text-[#17171b] shadow-[inset_0_-2px_0_0_#e5533c]' : 'text-[#56565f] hover:bg-white/50'
               }`}
             >
-              <Sparkles className="w-3.5 h-3.5 text-[#8b5cf6]" />
+              <Sparkles className="w-3.5 h-3.5 text-[#f59e0b]" />
               <span>Agent Skill</span>
             </button>
           </div>
 
           {/* Tab Content */}
           <div className="p-6 bg-[#0f0f13] text-[#f0f0f5]">
-            {activeInstallTab === 'claude' && (
+            {activeInstallTab === 'direct' && (
               <div>
                 <div className="flex items-center justify-between text-xs text-[#9d9da8] mb-2 font-mono">
-                  <span># Run in your terminal to enable ZeroShield in Claude Code:</span>
-                  <span className="text-[#e5533c] font-semibold">1-Click Setup</span>
+                  <span># Direct Global Install or Instant Zero-Install Run:</span>
+                  <span className="text-[#e5533c] font-semibold">Recommended</span>
                 </div>
-                <div className="flex items-center justify-between bg-[#18181f] border border-[#2b2b36] rounded-xs p-3 font-mono text-sm">
-                  <span className="text-[#10b981] select-all overflow-x-auto whitespace-nowrap mr-3">
-                    claude mcp add zeroshield -- npx @zeroshield/cli mcp
-                  </span>
-                  <button
-                    onClick={() => copyToClipboard('claude mcp add zeroshield -- npx @zeroshield/cli mcp', 'claude')}
-                    className="px-3 py-1.5 rounded-xs bg-[#e5533c] hover:bg-[#c23a25] text-white font-mono text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-all"
-                  >
-                    {copiedKey === 'claude' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copiedKey === 'claude' ? 'Copied' : 'Copy'}</span>
-                  </button>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between bg-[#18181f] border border-[#2b2b36] rounded-xs p-3 font-mono text-sm">
+                    <span className="text-[#10b981] select-all overflow-x-auto whitespace-nowrap mr-3">
+                      npm install -g zeroshield
+                    </span>
+                    <button
+                      onClick={() => copyToClipboard('npm install -g zeroshield', 'tab-npm')}
+                      className="px-3 py-1.5 rounded-xs bg-[#e5533c] hover:bg-[#c23a25] text-white font-mono text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-all"
+                    >
+                      {copiedKey === 'tab-npm' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedKey === 'tab-npm' ? 'Copied' : 'Copy'}</span>
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between bg-[#18181f] border border-[#2b2b36] rounded-xs p-3 font-mono text-sm">
+                    <span className="text-[#f0f0f5] select-all overflow-x-auto whitespace-nowrap mr-3">
+                      npx zeroshield immunize ./src --port 8080 --local
+                    </span>
+                    <button
+                      onClick={() => copyToClipboard('npx zeroshield immunize ./src --port 8080 --local', 'tab-npx-imm')}
+                      className="px-3 py-1.5 rounded-xs bg-[#17171b] hover:bg-[#2b2b36] border border-[#2b2b36] text-white font-mono text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-all"
+                    >
+                      {copiedKey === 'tab-npx-imm' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedKey === 'tab-npx-imm' ? 'Copied' : 'Copy'}</span>
+                    </button>
+                  </div>
                 </div>
                 <p className="mt-3 text-xs text-[#9d9da8] leading-relaxed">
-                  Grants Claude Code 4 native tools: <code className="text-[#f0f0f5]">zeroshield_sast_scan</code>, <code className="text-[#f0f0f5]">zeroshield_daytona_exploit</code>, <code className="text-[#f0f0f5]">zeroshield_avo_patch</code>, and <code className="text-[#f0f0f5]">zeroshield_immunize_verify</code>.
+                  Directly provides <code className="text-[#f0f0f5]">zeroshield scan</code> (SAST AST search), <code className="text-[#f0f0f5]">zeroshield immunize</code> (Triple-Lock auto-patcher), and <code className="text-[#f0f0f5]">zeroshield serve</code> (REST &amp; Streaming API).
                 </p>
               </div>
             )}
@@ -441,53 +496,85 @@ export function App() {
             {activeInstallTab === 'cursor' && (
               <div>
                 <div className="flex items-center justify-between text-xs text-[#9d9da8] mb-2 font-mono">
-                  <span># Add to your Cursor / Windsurf settings.json (MCP Servers):</span>
+                  <span># Configure Cursor / Windsurf / VS Code (settings.json):</span>
+                  <span className="text-[#3b82f6] font-semibold">Native IDE Support</span>
                 </div>
                 <div className="bg-[#18181f] border border-[#2b2b36] rounded-xs p-3 font-mono text-xs overflow-x-auto relative">
                   <pre className="text-[#f0f0f5]">{`"mcpServers": {
   "zeroshield": {
     "command": "npx",
-    "args": ["@zeroshield/cli", "mcp"]
+    "args": ["zeroshield", "mcp"]
   }
 }`}</pre>
                   <button
-                    onClick={() => copyToClipboard(`"mcpServers": {\n  "zeroshield": {\n    "command": "npx",\n    "args": ["@zeroshield/cli", "mcp"]\n  }\n}`, 'cursor')}
+                    onClick={() => copyToClipboard(`"mcpServers": {\n  "zeroshield": {\n    "command": "npx",\n    "args": ["zeroshield", "mcp"]\n  }\n}`, 'cursor-json')}
                     className="absolute top-3 right-3 px-3 py-1.5 rounded-xs bg-[#3b82f6] hover:bg-[#2563eb] text-white font-mono text-xs font-semibold flex items-center gap-1.5 transition-all"
                   >
-                    {copiedKey === 'cursor' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copiedKey === 'cursor' ? 'Copied' : 'Copy JSON'}</span>
+                    {copiedKey === 'cursor-json' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedKey === 'cursor-json' ? 'Copied' : 'Copy JSON'}</span>
                   </button>
                 </div>
               </div>
             )}
 
-            {activeInstallTab === 'cli' && (
+            {activeInstallTab === 'claude' && (
               <div>
                 <div className="flex items-center justify-between text-xs text-[#9d9da8] mb-2 font-mono">
-                  <span># Install globally or run on-demand across any repository:</span>
-                </div>
-                <div className="flex items-center justify-between bg-[#18181f] border border-[#2b2b36] rounded-xs p-3 font-mono text-sm mb-3">
-                  <span className="text-[#10b981] select-all overflow-x-auto whitespace-nowrap mr-3">
-                    npx zeroshield scan ./src
-                  </span>
-                  <button
-                    onClick={() => copyToClipboard('npx zeroshield scan ./src', 'cli-scan')}
-                    className="px-3 py-1.5 rounded-xs bg-[#10b981] hover:bg-[#059669] text-white font-mono text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-all"
-                  >
-                    {copiedKey === 'cli-scan' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copiedKey === 'cli-scan' ? 'Copied' : 'Copy'}</span>
-                  </button>
+                  <span># 1-Line CLI Command for Claude Code:</span>
+                  <span className="text-[#8b5cf6] font-semibold">Official Protocol</span>
                 </div>
                 <div className="flex items-center justify-between bg-[#18181f] border border-[#2b2b36] rounded-xs p-3 font-mono text-sm">
                   <span className="text-[#10b981] select-all overflow-x-auto whitespace-nowrap mr-3">
-                    npx zeroshield immunize ./src --port 8080 --local
+                    claude mcp add zeroshield -- npx zeroshield mcp
                   </span>
                   <button
-                    onClick={() => copyToClipboard('npx zeroshield immunize ./src --port 8080 --local', 'cli-imm')}
-                    className="px-3 py-1.5 rounded-xs bg-[#10b981] hover:bg-[#059669] text-white font-mono text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-all"
+                    onClick={() => copyToClipboard('claude mcp add zeroshield -- npx zeroshield mcp', 'claude-cli')}
+                    className="px-3 py-1.5 rounded-xs bg-[#8b5cf6] hover:bg-[#7c3aed] text-white font-mono text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-all"
                   >
-                    {copiedKey === 'cli-imm' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copiedKey === 'cli-imm' ? 'Copied' : 'Copy'}</span>
+                    {copiedKey === 'claude-cli' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedKey === 'claude-cli' ? 'Copied' : 'Copy'}</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {activeInstallTab === 'cicd' && (
+              <div>
+                <div className="flex items-center justify-between text-xs text-[#9d9da8] mb-2 font-mono">
+                  <span># Add to GitHub Actions Workflow (.github/workflows/security.yml):</span>
+                  <span className="text-[#10b981] font-semibold">CI/CD Gate</span>
+                </div>
+                <div className="bg-[#18181f] border border-[#2b2b36] rounded-xs p-3 font-mono text-xs overflow-x-auto relative">
+                  <pre className="text-[#f0f0f5]">{`- name: Run ZeroShield Autonomous Exploit Immunizer Gate
+  run: |
+    npx zeroshield scan --fail-on-cvss 7.0 .
+    npx zeroshield immunize --ci --report-format markdown > report.md`}</pre>
+                  <button
+                    onClick={() => copyToClipboard(`- name: Run ZeroShield Autonomous Exploit Immunizer Gate\n  run: |\n    npx zeroshield scan --fail-on-cvss 7.0 .\n    npx zeroshield immunize --ci --report-format markdown > report.md`, 'cicd-yml')}
+                    className="absolute top-3 right-3 px-3 py-1.5 rounded-xs bg-[#10b981] hover:bg-[#059669] text-white font-mono text-xs font-semibold flex items-center gap-1.5 transition-all"
+                  >
+                    {copiedKey === 'cicd-yml' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedKey === 'cicd-yml' ? 'Copied' : 'Copy YAML'}</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {activeInstallTab === 'docker' && (
+              <div>
+                <div className="flex items-center justify-between text-xs text-[#9d9da8] mb-2 font-mono">
+                  <span># Run in fully isolated Docker / Podman container:</span>
+                </div>
+                <div className="flex items-center justify-between bg-[#18181f] border border-[#2b2b36] rounded-xs p-3 font-mono text-sm">
+                  <span className="text-[#06b6d4] select-all overflow-x-auto whitespace-nowrap mr-3">
+                    docker run --rm -v $(pwd):/workspace ghcr.io/zeroshield/engine:latest scan /workspace
+                  </span>
+                  <button
+                    onClick={() => copyToClipboard('docker run --rm -v $(pwd):/workspace ghcr.io/zeroshield/engine:latest scan /workspace', 'docker-cmd')}
+                    className="px-3 py-1.5 rounded-xs bg-[#06b6d4] hover:bg-[#0891b2] text-white font-mono text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-all"
+                  >
+                    {copiedKey === 'docker-cmd' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedKey === 'docker-cmd' ? 'Copied' : 'Copy'}</span>
                   </button>
                 </div>
               </div>
@@ -499,15 +586,15 @@ export function App() {
                   <span># Install via Open Agent Skills ecosystem (skills.sh):</span>
                 </div>
                 <div className="flex items-center justify-between bg-[#18181f] border border-[#2b2b36] rounded-xs p-3 font-mono text-sm">
-                  <span className="text-[#8b5cf6] select-all overflow-x-auto whitespace-nowrap mr-3">
+                  <span className="text-[#f59e0b] select-all overflow-x-auto whitespace-nowrap mr-3">
                     npx skills add priyanshupk2022-arch/zeroshield -g -y
                   </span>
                   <button
-                    onClick={() => copyToClipboard('npx skills add priyanshupk2022-arch/zeroshield -g -y', 'skill')}
-                    className="px-3 py-1.5 rounded-xs bg-[#8b5cf6] hover:bg-[#7c3aed] text-white font-mono text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-all"
+                    onClick={() => copyToClipboard('npx skills add priyanshupk2022-arch/zeroshield -g -y', 'skill-pkg')}
+                    className="px-3 py-1.5 rounded-xs bg-[#f59e0b] hover:bg-[#d97706] text-white font-mono text-xs font-semibold flex items-center gap-1.5 shrink-0 transition-all"
                   >
-                    {copiedKey === 'skill' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copiedKey === 'skill' ? 'Copied' : 'Copy'}</span>
+                    {copiedKey === 'skill-pkg' ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{copiedKey === 'skill-pkg' ? 'Copied' : 'Copy'}</span>
                   </button>
                 </div>
               </div>
@@ -516,240 +603,278 @@ export function App() {
         </div>
       </section>
 
-      {/* Architecture / How It Works */}
-      <section id="how-it-works" className="py-16 bg-white border-y border-[#e2e2e8]">
+      {/* Ecosystem Compatibility Badges */}
+      <section id="ecosystem" className="py-12 bg-white border-y border-[#e2e2e8]">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
-          <div className="max-w-3xl mb-12">
-            <span className="text-xs font-mono font-bold text-[#e5533c] tracking-widest uppercase">Layer 0 Defense Architecture</span>
-            <h2 className="text-3xl font-extrabold text-[#17171b] tracking-tight mt-1 mb-4">
-              How ZeroShield Immunizes Code Before It Reaches Disk
-            </h2>
-            <p className="text-[#56565f] text-sm sm:text-base leading-relaxed">
-              Standard AI agents write code directly to the host filesystem. ZeroShield intercepts execution and runs a rigorous 5-stage adversarial defense pipeline in a remote Daytona / isolated container.
-            </p>
+          <div className="text-center mb-8">
+            <span className="text-xs font-mono font-bold text-[#56565f] uppercase tracking-wider">
+              Engineered For Complete Cross-Agent Compatibility
+            </span>
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="p-6 rounded-md border border-[#e2e2e8] bg-[#f7f7f9] hover:border-[#17171b] transition-all">
-              <div className="w-8 h-8 rounded-sm bg-[#17171b] text-white flex items-center justify-center font-mono font-bold text-xs mb-4">
-                01
-              </div>
-              <h3 className="font-bold text-base text-[#17171b] mb-2 flex items-center gap-2">
-                <Flame className="w-4 h-4 text-[#e5533c]" />
-                <span>Daytona Red-Team Arena</span>
-              </h3>
-              <p className="text-xs text-[#56565f] leading-relaxed">
-                The candidate code is isolated in an ephemeral sandbox without host credentials. The Red Agent fires live adversarial payloads to capture undeniable proof of exploitability.
-              </p>
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 font-mono text-xs font-bold text-center">
+            <div className="p-3 bg-[#f7f7f9] rounded-sm border border-[#e2e2e8] hover:border-[#17171b] transition-all">
+              <span className="text-[#e5533c]">●</span> Cursor
             </div>
-
-            <div className="p-6 rounded-md border border-[#e2e2e8] bg-[#f7f7f9] hover:border-[#17171b] transition-all">
-              <div className="w-8 h-8 rounded-sm bg-[#17171b] text-white flex items-center justify-center font-mono font-bold text-xs mb-4">
-                02
-              </div>
-              <h3 className="font-bold text-base text-[#17171b] mb-2 flex items-center gap-2">
-                <Code2 className="w-4 h-4 text-[#3b82f6]" />
-                <span>NVIDIA AVO AST Codemods</span>
-              </h3>
-              <p className="text-xs text-[#56565f] leading-relaxed">
-                Rather than re-prompting stochastic LLMs, the Blue Agent synthesizes deterministic TypeScript AST transformations with Zod runtime schemas and boundary checks in &lt;12ms.
-              </p>
+            <div className="p-3 bg-[#f7f7f9] rounded-sm border border-[#e2e2e8] hover:border-[#17171b] transition-all">
+              <span className="text-[#8b5cf6]">●</span> Claude Code
             </div>
-
-            <div className="p-6 rounded-md border border-[#e2e2e8] bg-[#f7f7f9] hover:border-[#17171b] transition-all">
-              <div className="w-8 h-8 rounded-sm bg-[#17171b] text-white flex items-center justify-center font-mono font-bold text-xs mb-4">
-                03
-              </div>
-              <h3 className="font-bold text-base text-[#17171b] mb-2 flex items-center gap-2">
-                <Lock className="w-4 h-4 text-[#10b981]" />
-                <span>Triple-Lock Verification</span>
-              </h3>
-              <p className="text-xs text-[#56565f] leading-relaxed">
-                Lock 1: Exploit is blocked (HTTP 400/403). Lock 2: Golden traffic preserves original behavior (HTTP 200). Lock 3: Target unit tests pass with Exit Code 0.
-              </p>
+            <div className="p-3 bg-[#f7f7f9] rounded-sm border border-[#e2e2e8] hover:border-[#17171b] transition-all">
+              <span className="text-[#3b82f6]">●</span> Windsurf
+            </div>
+            <div className="p-3 bg-[#f7f7f9] rounded-sm border border-[#e2e2e8] hover:border-[#17171b] transition-all">
+              <span className="text-[#10b981]">●</span> Devin
+            </div>
+            <div className="p-3 bg-[#f7f7f9] rounded-sm border border-[#e2e2e8] hover:border-[#17171b] transition-all">
+              <span className="text-[#06b6d4]">●</span> Copilot
+            </div>
+            <div className="p-3 bg-[#f7f7f9] rounded-sm border border-[#e2e2e8] hover:border-[#17171b] transition-all">
+              <span className="text-[#f59e0b]">●</span> Cline / Roo
+            </div>
+            <div className="p-3 bg-[#f7f7f9] rounded-sm border border-[#e2e2e8] hover:border-[#17171b] transition-all">
+              <span className="text-[#17171b]">●</span> TrueForge
+            </div>
+            <div className="p-3 bg-[#f7f7f9] rounded-sm border border-[#e2e2e8] hover:border-[#17171b] transition-all">
+              <span className="text-[#e5533c]">●</span> Terminal CLI
             </div>
           </div>
         </div>
       </section>
 
-      {/* Interactive Live MCP Tool Playground */}
-      <section id="playground" className="py-16 px-4 sm:px-6 max-w-6xl mx-auto">
-        <div className="max-w-3xl mb-8">
-          <span className="text-xs font-mono font-bold text-[#e5533c] tracking-widest uppercase">Interactive Test Runner</span>
-          <h2 className="text-3xl font-extrabold text-[#17171b] tracking-tight mt-1 mb-2">
-            Live MCP Pipeline Simulator
+      {/* Architecture / How It Works */}
+      <section id="how-it-works" className="py-16 px-4 sm:px-6 max-w-6xl mx-auto">
+        <div className="max-w-3xl mb-12">
+          <span className="text-xs font-mono font-bold text-[#e5533c] tracking-widest uppercase">Layer 0 Defense Architecture</span>
+          <h2 className="text-3xl font-extrabold text-[#17171b] tracking-tight mt-1 mb-4">
+            How ZeroShield Immunizes Code Before It Reaches Disk
           </h2>
-          <p className="text-[#56565f] text-sm">
-            Select a real-world vulnerability target and execute the 4 MCP tools step-by-step.
+          <p className="text-[#56565f] text-sm sm:text-base leading-relaxed">
+            Standard AI agents write code directly to the host filesystem without verification. ZeroShield intercepts agent actions and runs a rigorous 5-stage adversarial defense pipeline in an isolated Daytona / Docker container.
           </p>
         </div>
 
-        {/* Target Selector */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 mb-6 font-mono text-xs">
-          {SCENARIOS.map((sc) => (
-            <button
-              key={sc.id}
-              onClick={() => {
-                setSelectedScenario(sc);
-                setPlaygroundStep(1);
-                setHitlApproved(false);
-              }}
-              className={`p-2.5 rounded-sm text-left border transition-all ${
-                selectedScenario.id === sc.id
-                  ? 'bg-white border-[#17171b] shadow-brutal-sm font-bold text-[#17171b]'
-                  : 'bg-white/60 border-[#e2e2e8] text-[#56565f] hover:bg-white'
-              }`}
-            >
-              <div className="text-[10px] text-[#e5533c] font-bold">{sc.cwe.split(':')[0]}</div>
-              <div className="truncate font-semibold mt-0.5">{sc.name.split(' ')[0]}</div>
-            </button>
-          ))}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="p-6 rounded-md border border-[#e2e2e8] bg-white shadow-sm hover:border-[#17171b] transition-all">
+            <div className="w-8 h-8 rounded-sm bg-[#17171b] text-white flex items-center justify-center font-mono font-bold text-xs mb-4">
+              01
+            </div>
+            <h3 className="font-bold text-base text-[#17171b] mb-2 flex items-center gap-2">
+              <Flame className="w-4 h-4 text-[#e5533c]" />
+              <span>Daytona Red-Team Arena</span>
+            </h3>
+            <p className="text-xs text-[#56565f] leading-relaxed">
+              Candidate code is isolated in an ephemeral container without host credentials. The Red Agent launches dynamic exploits to capture undeniable proof of exploitability.
+            </p>
+          </div>
+
+          <div className="p-6 rounded-md border border-[#e2e2e8] bg-white shadow-sm hover:border-[#17171b] transition-all">
+            <div className="w-8 h-8 rounded-sm bg-[#17171b] text-white flex items-center justify-center font-mono font-bold text-xs mb-4">
+              02
+            </div>
+            <h3 className="font-bold text-base text-[#17171b] mb-2 flex items-center gap-2">
+              <Code2 className="w-4 h-4 text-[#3b82f6]" />
+              <span>NVIDIA AVO AST Codemods</span>
+            </h3>
+            <p className="text-xs text-[#56565f] leading-relaxed">
+              Rather than re-prompting stochastic LLMs, the Blue Agent synthesizes deterministic TypeScript AST transformations with Zod runtime schemas and boundary checks in &lt;12ms.
+            </p>
+          </div>
+
+          <div className="p-6 rounded-md border border-[#e2e2e8] bg-white shadow-sm hover:border-[#17171b] transition-all">
+            <div className="w-8 h-8 rounded-sm bg-[#17171b] text-white flex items-center justify-center font-mono font-bold text-xs mb-4">
+              03
+            </div>
+            <h3 className="font-bold text-base text-[#17171b] mb-2 flex items-center gap-2">
+              <Lock className="w-4 h-4 text-[#10b981]" />
+              <span>Triple-Lock Verification</span>
+            </h3>
+            <p className="text-xs text-[#56565f] leading-relaxed">
+              Lock 1: Exploit is blocked (HTTP 400/403). Lock 2: Golden traffic preserves original behavior (HTTP 200). Lock 3: Target unit tests pass with Exit Code 0.
+            </p>
+          </div>
         </div>
+      </section>
 
-        {/* Interactive Workspace Box */}
-        <div className="bg-white rounded-md border border-[#17171b] shadow-brutal-dark overflow-hidden">
-          {/* Header Bar */}
-          <div className="bg-[#17171b] text-white p-4 flex flex-wrap items-center justify-between gap-4 border-b border-[#17171b]">
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-sm">{selectedScenario.name}</span>
-                <span className="text-[10px] font-mono bg-[#e5533c] text-white px-1.5 py-0.5 rounded-xs font-bold">
-                  {selectedScenario.cwe}
-                </span>
-              </div>
-              <div className="text-xs text-[#9d9da8] mt-0.5 font-mono">
-                Target file: {selectedScenario.file}
-              </div>
-            </div>
+      {/* Interactive Live MCP Tool Playground */}
+      <section id="playground" className="py-16 bg-white border-t border-[#e2e2e8]">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6">
+          <div className="max-w-3xl mb-8">
+            <span className="text-xs font-mono font-bold text-[#e5533c] tracking-widest uppercase">Interactive Test Runner</span>
+            <h2 className="text-3xl font-extrabold text-[#17171b] tracking-tight mt-1 mb-2">
+              Live Pipeline Simulator &amp; Tool Runner
+            </h2>
+            <p className="text-[#56565f] text-sm">
+              Select a real-world vulnerability target and execute the 4 core immunization stages step-by-step.
+            </p>
+          </div>
 
-            {/* CVSS Threat Gauge Badge */}
-            <div className="flex items-center gap-3 bg-[#0f0f13] px-3 py-1.5 rounded-xs border border-[#2b2b36]">
-              <div className="text-right font-mono">
-                <div className="text-[10px] text-[#9d9da8]">CVSS POSTURE</div>
-                <div className={`text-sm font-bold ${getCvssScore() === 0 ? 'text-[#10b981]' : 'text-[#e5533c]'}`}>
-                  {getCvssScore() === 0 ? '0.0 CLEAN' : `${getCvssScore()} CRITICAL`}
+          {/* Target Selector */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 mb-6 font-mono text-xs">
+            {SCENARIOS.map((sc) => (
+              <button
+                key={sc.id}
+                onClick={() => {
+                  setSelectedScenario(sc);
+                  setPlaygroundStep(1);
+                  setHitlApproved(false);
+                }}
+                className={`p-2.5 rounded-sm text-left border transition-all ${
+                  selectedScenario.id === sc.id
+                    ? 'bg-[#17171b] border-[#17171b] text-white shadow-brutal-sm font-bold'
+                    : 'bg-[#f7f7f9] border-[#e2e2e8] text-[#56565f] hover:bg-white'
+                }`}
+              >
+                <div className={`text-[10px] font-bold ${selectedScenario.id === sc.id ? 'text-[#e5533c]' : 'text-[#e5533c]'}`}>
+                  {sc.cwe.split(':')[0]}
                 </div>
-              </div>
-              <div className={`w-3 h-3 rounded-full ${getCvssScore() === 0 ? 'bg-[#10b981]' : 'bg-[#e5533c] animate-pulse'}`} />
-            </div>
+                <div className="truncate font-semibold mt-0.5">{sc.name.split(' ')[0]}</div>
+              </button>
+            ))}
           </div>
 
-          {/* Tool Stepper Buttons */}
-          <div className="grid grid-cols-1 sm:grid-cols-4 border-b border-[#e2e2e8] bg-[#f7f7f9] text-xs font-mono">
-            <button
-              onClick={() => runPlaygroundStep(1)}
-              className={`p-3 text-left border-r border-[#e2e2e8] transition-all flex items-center gap-2 ${
-                playgroundStep >= 1 ? 'bg-white font-bold text-[#17171b]' : 'text-[#56565f]'
-              }`}
-            >
-              <span className="w-5 h-5 rounded-xs bg-[#17171b] text-white flex items-center justify-center text-[10px]">1</span>
-              <span>sast_scan</span>
-            </button>
-            <button
-              onClick={() => runPlaygroundStep(2)}
-              className={`p-3 text-left border-r border-[#e2e2e8] transition-all flex items-center gap-2 ${
-                playgroundStep >= 2 ? 'bg-white font-bold text-[#17171b]' : 'text-[#56565f]'
-              }`}
-            >
-              <span className="w-5 h-5 rounded-xs bg-[#e5533c] text-white flex items-center justify-center text-[10px]">2</span>
-              <span>daytona_exploit</span>
-            </button>
-            <button
-              onClick={() => runPlaygroundStep(3)}
-              className={`p-3 text-left border-r border-[#e2e2e8] transition-all flex items-center gap-2 ${
-                playgroundStep >= 3 ? 'bg-white font-bold text-[#17171b]' : 'text-[#56565f]'
-              }`}
-            >
-              <span className="w-5 h-5 rounded-xs bg-[#3b82f6] text-white flex items-center justify-center text-[10px]">3</span>
-              <span>avo_patch</span>
-            </button>
-            <button
-              onClick={() => runPlaygroundStep(4)}
-              className={`p-3 text-left transition-all flex items-center gap-2 ${
-                playgroundStep >= 4 ? 'bg-white font-bold text-[#10b981]' : 'text-[#56565f]'
-              }`}
-            >
-              <span className="w-5 h-5 rounded-xs bg-[#10b981] text-white flex items-center justify-center text-[10px]">4</span>
-              <span>immunize_verify</span>
-            </button>
-          </div>
-
-          {/* Interactive Display Area */}
-          <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6 bg-white">
-            {/* Left: Code Viewer */}
-            <div>
-              <div className="flex items-center justify-between text-xs font-mono text-[#56565f] mb-2">
-                <span className="font-bold text-[#17171b]">
-                  {playgroundStep >= 3 ? '🛡️ Blue Agent Synthesized Patch (AST Codemod)' : '⚠️ Candidate Source Code (AST Sink)'}
-                </span>
-                <span className="text-[11px] bg-[#f0f0f5] px-2 py-0.5 rounded-xs">TypeScript</span>
-              </div>
-              <div className="bg-[#0f0f13] text-[#f0f0f5] p-4 rounded-sm font-mono text-xs overflow-x-auto max-h-[380px] border border-[#2b2b36]">
-                <pre>{playgroundStep >= 3 ? selectedScenario.patchedCode : selectedScenario.vulnerableCode}</pre>
-              </div>
-            </div>
-
-            {/* Right: Live Diagnostics & Triple Lock */}
-            <div className="flex flex-col justify-between">
+          {/* Interactive Workspace Box */}
+          <div className="bg-white rounded-md border border-[#17171b] shadow-brutal-dark overflow-hidden">
+            {/* Header Bar */}
+            <div className="bg-[#17171b] text-white p-4 flex flex-wrap items-center justify-between gap-4 border-b border-[#17171b]">
               <div>
-                <div className="text-xs font-mono font-bold text-[#17171b] mb-2 flex items-center gap-1.5">
-                  <ActivityIcon className="w-4 h-4 text-[#e5533c]" />
-                  <span>Sandbox Lifecycle & Verification Output</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-bold text-sm">{selectedScenario.name}</span>
+                  <span className="text-[10px] font-mono bg-[#e5533c] text-white px-1.5 py-0.5 rounded-xs font-bold">
+                    {selectedScenario.cwe}
+                  </span>
                 </div>
-
-                {playgroundStep === 1 && (
-                  <div className="p-4 rounded-sm bg-[#f7f7f9] border border-[#e2e2e8] font-mono text-xs space-y-2">
-                    <div className="text-[#e5533c] font-bold">🔍 [SAST SCAN DETECTED VULNERABILITY]</div>
-                    <div className="text-[#56565f]">{selectedScenario.description}</div>
-                    <div className="text-[#17171b] font-semibold mt-2">Threat Score: {selectedScenario.initialCvss} Critical</div>
-                  </div>
-                )}
-
-                {playgroundStep === 2 && (
-                  <div className="p-4 rounded-sm bg-[#0f0f13] text-[#f0f0f5] font-mono text-xs space-y-2 border border-[#2b2b36]">
-                    <div className="text-[#e5533c] font-bold">⚡ [RED AGENT EXPLOIT IN SANDBOX]</div>
-                    <div className="text-[#9d9da8]">Payload: <code className="text-[#f0f0f5]">{selectedScenario.exploitPayload}</code></div>
-                    <div className="text-[#10b981]">Proof Captured: <code className="text-[#10b981]">{selectedScenario.proofSignature}</code></div>
-                    <div className="text-xs text-[#e5533c] font-bold mt-2">Exploit Status: CONFIRMED_IN_SANDBOX</div>
-                  </div>
-                )}
-
-                {playgroundStep >= 3 && (
-                  <div className="p-4 rounded-sm bg-[#f7f7f9] border border-[#e2e2e8] font-mono text-xs space-y-2.5">
-                    <div className="text-[#3b82f6] font-bold">🔒 [TRIPLE-LOCK ASSERTION ENGINE]</div>
-                    
-                    <div className="flex items-start gap-2 text-xs">
-                      <CheckCircle2 className="w-4 h-4 text-[#10b981] shrink-0 mt-0.5" />
-                      <div>
-                        <div className="font-bold text-[#17171b]">Lock 1 (Exploit Blocked)</div>
-                        <div className="text-[#56565f] text-[11px]">{selectedScenario.lock1Result}</div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-2 text-xs">
-                      <CheckCircle2 className="w-4 h-4 text-[#10b981] shrink-0 mt-0.5" />
-                      <div>
-                        <div className="font-bold text-[#17171b]">Lock 2 (Golden Traffic Preserved)</div>
-                        <div className="text-[#56565f] text-[11px]">{selectedScenario.lock2Result}</div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-start gap-2 text-xs">
-                      <CheckCircle2 className="w-4 h-4 text-[#10b981] shrink-0 mt-0.5" />
-                      <div>
-                        <div className="font-bold text-[#17171b]">Lock 3 (Real Unit Tests Pass)</div>
-                        <div className="text-[#56565f] text-[11px]">{selectedScenario.lock3Result}</div>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                <div className="text-xs text-[#9d9da8] mt-0.5 font-mono">
+                  Target file: {selectedScenario.file}
+                </div>
               </div>
+
+              {/* CVSS Threat Gauge Badge */}
+              <div className="flex items-center gap-3 bg-[#0f0f13] px-3 py-1.5 rounded-xs border border-[#2b2b36]">
+                <div className="text-right font-mono">
+                  <div className="text-[10px] text-[#9d9da8]">CVSS POSTURE</div>
+                  <div className={`text-sm font-bold ${getCvssScore() === 0 ? 'text-[#10b981]' : 'text-[#e5533c]'}`}>
+                    {getCvssScore() === 0 ? '0.0 CLEAN' : `${getCvssScore()} CRITICAL`}
+                  </div>
+                </div>
+                <div className={`w-3 h-3 rounded-full ${getCvssScore() === 0 ? 'bg-[#10b981]' : 'bg-[#e5533c] animate-pulse'}`} />
+              </div>
+            </div>
+
+            {/* Tool Stepper Buttons */}
+            <div className="grid grid-cols-1 sm:grid-cols-4 border-b border-[#e2e2e8] bg-[#f7f7f9] text-xs font-mono">
+              <button
+                onClick={() => runPlaygroundStep(1)}
+                className={`p-3 text-left border-r border-[#e2e2e8] transition-all flex items-center gap-2 ${
+                  playgroundStep >= 1 ? 'bg-white font-bold text-[#17171b]' : 'text-[#56565f]'
+                }`}
+              >
+                <span className="w-5 h-5 rounded-xs bg-[#17171b] text-white flex items-center justify-center text-[10px]">1</span>
+                <span>1. SAST Discovery</span>
+              </button>
+              <button
+                onClick={() => runPlaygroundStep(2)}
+                className={`p-3 text-left border-r border-[#e2e2e8] transition-all flex items-center gap-2 ${
+                  playgroundStep >= 2 ? 'bg-white font-bold text-[#17171b]' : 'text-[#56565f]'
+                }`}
+              >
+                <span className="w-5 h-5 rounded-xs bg-[#e5533c] text-white flex items-center justify-center text-[10px]">2</span>
+                <span>2. Red Exploit Proof</span>
+              </button>
+              <button
+                onClick={() => runPlaygroundStep(3)}
+                className={`p-3 text-left border-r border-[#e2e2e8] transition-all flex items-center gap-2 ${
+                  playgroundStep >= 3 ? 'bg-white font-bold text-[#17171b]' : 'text-[#56565f]'
+                }`}
+              >
+                <span className="w-5 h-5 rounded-xs bg-[#3b82f6] text-white flex items-center justify-center text-[10px]">3</span>
+                <span>3. Blue AVO Patch</span>
+              </button>
+              <button
+                onClick={() => runPlaygroundStep(4)}
+                className={`p-3 text-left transition-all flex items-center gap-2 ${
+                  playgroundStep >= 4 ? 'bg-white font-bold text-[#10b981]' : 'text-[#56565f]'
+                }`}
+              >
+                <span className="w-5 h-5 rounded-xs bg-[#10b981] text-white flex items-center justify-center text-[10px]">4</span>
+                <span>4. Triple-Lock Pass</span>
+              </button>
+            </div>
+
+            {/* Interactive Display Area */}
+            <div className="p-6 grid grid-cols-1 lg:grid-cols-2 gap-6 bg-white">
+              {/* Left: Code Viewer */}
+              <div>
+                <div className="flex items-center justify-between text-xs font-mono text-[#56565f] mb-2">
+                  <span className="font-bold text-[#17171b]">
+                    {playgroundStep >= 3 ? '🛡️ Blue Agent Synthesized Patch (AST Codemod)' : '⚠️ Candidate Source Code (AST Sink)'}
+                  </span>
+                  <span className="text-[11px] bg-[#f0f0f5] px-2 py-0.5 rounded-xs">TypeScript</span>
+                </div>
+                <div className="bg-[#0f0f13] text-[#f0f0f5] p-4 rounded-sm font-mono text-xs overflow-x-auto max-h-[380px] border border-[#2b2b36]">
+                  <pre>{playgroundStep >= 3 ? selectedScenario.patchedCode : selectedScenario.vulnerableCode}</pre>
+                </div>
+              </div>
+
+              {/* Right: Live Diagnostics & Triple Lock */}
+              <div className="flex flex-col justify-between">
+                <div>
+                  <div className="text-xs font-mono font-bold text-[#17171b] mb-2 flex items-center gap-1.5">
+                    <ActivityIcon className="w-4 h-4 text-[#e5533c]" />
+                    <span>Sandbox Lifecycle &amp; Verification Output</span>
+                  </div>
+
+                  {playgroundStep === 1 && (
+                    <div className="p-4 rounded-sm bg-[#f7f7f9] border border-[#e2e2e8] font-mono text-xs space-y-2">
+                      <div className="text-[#e5533c] font-bold">🔍 [SAST SCAN DETECTED VULNERABILITY]</div>
+                      <div className="text-[#56565f]">{selectedScenario.description}</div>
+                      <div className="text-[#17171b] font-semibold mt-2">Threat Score: {selectedScenario.initialCvss} Critical</div>
+                    </div>
+                  )}
+
+                  {playgroundStep === 2 && (
+                    <div className="p-4 rounded-sm bg-[#0f0f13] text-[#f0f0f5] font-mono text-xs space-y-2 border border-[#2b2b36]">
+                      <div className="text-[#e5533c] font-bold">⚡ [RED AGENT EXPLOIT IN SANDBOX]</div>
+                      <div className="text-[#9d9da8]">Payload: <code className="text-[#f0f0f5]">{selectedScenario.exploitPayload}</code></div>
+                      <div className="text-[#10b981]">Proof Captured: <code className="text-[#10b981]">{selectedScenario.proofSignature}</code></div>
+                      <div className="text-xs text-[#e5533c] font-bold mt-2">Exploit Status: CONFIRMED_IN_SANDBOX</div>
+                    </div>
+                  )}
+
+                  {playgroundStep >= 3 && (
+                    <div className="p-4 rounded-sm bg-[#f7f7f9] border border-[#e2e2e8] font-mono text-xs space-y-2.5">
+                      <div className="text-[#3b82f6] font-bold">🔒 [TRIPLE-LOCK ASSERTION ENGINE]</div>
+                      
+                      <div className="flex items-start gap-2 text-xs">
+                        <CheckCircle2 className="w-4 h-4 text-[#10b981] shrink-0 mt-0.5" />
+                        <div>
+                          <div className="font-bold text-[#17171b]">Lock 1 (Exploit Blocked)</div>
+                          <div className="text-[#56565f] text-[11px]">{selectedScenario.lock1Result}</div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-2 text-xs">
+                        <CheckCircle2 className="w-4 h-4 text-[#10b981] shrink-0 mt-0.5" />
+                        <div>
+                          <div className="font-bold text-[#17171b]">Lock 2 (Golden Traffic Preserved)</div>
+                          <div className="text-[#56565f] text-[11px]">{selectedScenario.lock2Result}</div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-start gap-2 text-xs">
+                        <CheckCircle2 className="w-4 h-4 text-[#10b981] shrink-0 mt-0.5" />
+                        <div>
+                          <div className="font-bold text-[#17171b]">Lock 3 (Real Unit Tests Pass)</div>
+                          <div className="text-[#56565f] text-[11px]">{selectedScenario.lock3Result}</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 {/* HITL Approval Gate */}
                 <div className="mt-4 pt-4 border-t border-[#e2e2e8]">
                   <div className="flex items-center justify-between bg-[#f0f0f5] p-3 rounded-xs border border-[#e2e2e8] text-xs font-mono">
                     <div>
-                      <div className="font-bold text-[#17171b]">HMAC-SHA256 HITL Sign-Off</div>
+                      <div className="font-bold text-[#17171b]">HMAC-SHA256 Cryptographic Sign-Off</div>
                       <div className="text-[11px] text-[#56565f]">
                         {hitlApproved ? '✅ Verified Single-Use Nonce Token' : 'Waiting for human cryptographic review'}
                       </div>
@@ -766,13 +891,14 @@ export function App() {
                     </button>
                   </div>
                 </div>
+              </div>
             </div>
           </div>
         </div>
       </section>
 
       {/* Official Verified Benchmark Matrix */}
-      <section id="benchmarks" className="py-16 bg-white border-t border-[#e2e2e8]">
+      <section id="benchmarks" className="py-16 bg-[#f7f7f9] border-t border-[#e2e2e8]">
         <div className="max-w-6xl mx-auto px-4 sm:px-6">
           <div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4">
             <div>
@@ -869,14 +995,14 @@ export function App() {
             <div className="w-6 h-6 rounded-xs bg-[#e5533c] flex items-center justify-center text-white font-bold">
               <Shield className="w-3.5 h-3.5" />
             </div>
-            <span className="font-bold text-white tracking-tight">ZeroShield Security Engine</span>
+            <span className="font-bold text-white tracking-tight">ZeroShield Autonomous Cyber Engine</span>
             <span>• MIT Licensed Open Source</span>
           </div>
 
           <div className="flex items-center gap-6">
             <a href="https://github.com/priyanshupk2022-arch/zeroshield" target="_blank" rel="noreferrer" className="hover:text-white transition-colors">GitHub</a>
             <a href="#how-it-works" className="hover:text-white transition-colors">Architecture</a>
-            <a href="#mcp-install" className="hover:text-white transition-colors">MCP Setup</a>
+            <a href="#install-all" className="hover:text-white transition-colors">Direct Install</a>
             <a href="#benchmarks" className="hover:text-white transition-colors">BENCHMARK.md</a>
           </div>
         </div>
