@@ -1,57 +1,53 @@
+import { TrueForge } from "@truefoundry/trueforge-sdk";
 import { TrueForgeMCPServer, trueforgeMCPServer } from "./server.js";
 import { runDebugAgent } from "../agent/loop.js";
 import { AgentEvent } from "../types.js";
 
-export interface TrueForgeAgentManifest {
-  name: string;
-  version: string;
-  description: string;
-  model: {
-    provider: string;
-    name: string;
-    temperature: number;
-  };
-  tools: Array<{
-    type: "mcp";
-    name: string;
-    description: string;
-    parameters: Record<string, unknown>;
-  }>;
-  sandbox: {
-    provider: "daytona" | "local";
-    image: string;
-  };
+export interface TrueForgeIntegrationConfig {
+  baseUrl?: string;
+  apiKey?: string;
+  autoConnect?: boolean;
 }
 
-export class TrueForgeAgentRuntime {
-  private server: TrueForgeMCPServer;
+export class TrueForgeHarnessBridge {
+  private client: TrueForge;
+  private mcpServer: TrueForgeMCPServer;
   private activeSessions: Map<string, { id: string; targetPath: string; events: AgentEvent[] }> = new Map();
+  public isConnectedToRemoteServer = false;
 
-  constructor(server: TrueForgeMCPServer = trueforgeMCPServer) {
-    this.server = server;
+  constructor(config: TrueForgeIntegrationConfig = {}, mcpServer: TrueForgeMCPServer = trueforgeMCPServer) {
+    const baseUrl = config.baseUrl || process.env.TRUEFORGE_BASE_URL || "http://localhost:8080";
+    const token = config.apiKey || process.env.TRUEFORGE_API_KEY;
+
+    this.client = new TrueForge({
+      baseUrl,
+      token,
+    });
+    this.mcpServer = mcpServer;
   }
 
-  getAgentManifest(): TrueForgeAgentManifest {
-    return {
-      name: "debugforge",
-      version: "1.0.0",
-      description: "DebugForge Autonomous AI Debugging Agent Harness on TrueForge & Daytona",
-      model: {
-        provider: "openai",
-        name: process.env.OPENAI_MODEL || "gpt-4o",
-        temperature: 0.1,
-      },
-      tools: this.server.listTools().map(tool => ({
-        type: "mcp",
-        name: tool.name,
-        description: tool.description,
-        parameters: tool.parameters,
-      })),
-      sandbox: {
-        provider: "daytona",
-        image: "node:22-slim",
-      },
-    };
+  getTrueForgeClient(): TrueForge {
+    return this.client;
+  }
+
+  getMCPServer(): TrueForgeMCPServer {
+    return this.mcpServer;
+  }
+
+  async initializeRemoteHarness(): Promise<{ status: "connected" | "offline_local"; registeredTools: string[] }> {
+    const tools = this.mcpServer.listTools().map(t => t.name);
+
+    if (process.env.TRUEFORGE_BASE_URL && process.env.TRUEFORGE_API_KEY) {
+      try {
+        await this.client.server.getCapabilities();
+        this.isConnectedToRemoteServer = true;
+        return { status: "connected", registeredTools: tools };
+      } catch (err) {
+        console.warn(`[TrueForge Notice] Remote TrueForge server is unreachable (${(err as Error).message}). Using local harness runtime.`);
+      }
+    }
+
+    return { status: "offline_local", registeredTools: tools };
   }
 
   async createSession(targetPath: string): Promise<string> {
@@ -70,7 +66,7 @@ export class TrueForgeAgentRuntime {
   ): AsyncGenerator<AgentEvent> {
     const session = this.activeSessions.get(sessionId);
     if (!session) {
-      throw new Error(`TrueForge session not found: ${sessionId}`);
+      throw new Error(`[TrueForge Session Error] Session not found: ${sessionId}`);
     }
 
     const generator = runDebugAgent({
@@ -88,4 +84,4 @@ export class TrueForgeAgentRuntime {
   }
 }
 
-export const trueforgeRuntime = new TrueForgeAgentRuntime();
+export const trueforgeHarness = new TrueForgeHarnessBridge();
