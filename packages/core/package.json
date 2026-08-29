@@ -2,8 +2,8 @@
   "name": "@zeroshield/core",
   "version": "1.0.0",
   "description": "ZeroShield Core Engine: AST Vulnerability Hunter, Daytona Red Exploit Arena, and Blue AVO Immunizer",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
   "scripts": {
     "build": "tsc",
     "test": "node --test dist/tests/**/*.test.js"
