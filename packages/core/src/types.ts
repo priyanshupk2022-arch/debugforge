@@ -140,3 +140,12 @@ export type AgentEvent =
   | { type: "verification_complete"; verification: TripleLockResult; timestamp: number }
   | { type: "approval_requested"; patch: PatchResult; nonce: string; timestamp: number }
   | { type: "complete"; summary: string; success: boolean; timestamp: number };
+
+export interface AgentOptions {
+  prompt?: string;
+  rawError?: string;
+  projectPath?: string;
+  testCommand?: string;
+  autoApprove?: boolean;
+}
+

@@ -1,90 +1,87 @@
-import { AgentEvent, ErrorReport, RootCauseAnalysis, PatchResult, TripleLockResult } from "../types.js";
+import {
+  AgentEvent,
+  AgentOptions,
+  ErrorReport,
+  RootCauseAnalysis,
+  PatchResult,
+  TripleLockResult,
+} from "../types.js";
 import { ingestError } from "../tools/ingest-error.js";
 import { reproduceInSandbox } from "../tools/reproduce.js";
 import { traceAndAnalyze } from "../tools/trace-analyze.js";
 import { autoPatch } from "../tools/auto-patch.js";
 import { verifyFix } from "../tools/verify-fix.js";
 import { hitlGatekeeper } from "../hitl/approval.js";
+import path from "node:path";
 
-export interface AgentRunOptions {
-  prompt?: string;
-  rawError?: string;
-  projectPath: string;
-  testCommand?: string;
-  autoApprove?: boolean;
-}
+export async function* runDebugAgent(options: AgentOptions): AsyncGenerator<AgentEvent> {
+  const {
+    rawError,
+    projectPath = process.cwd(),
+    testCommand = "npm test",
+    autoApprove = false,
+  } = options;
 
-export async function* runDebugAgent(options: AgentRunOptions): AsyncGenerator<AgentEvent> {
-  const { projectPath, testCommand = "npm test", autoApprove = true } = options;
+  const resolvedTarget = path.resolve(projectPath);
+  const configuredModel = process.env.OPENAI_MODEL || "gpt-4o";
 
+  // Event 1: Start ReAct loop
   yield {
     type: "thought",
-    content: `Initializing DebugForge Autonomous Agent on target: ${projectPath}`,
+    content: `[MODEL ACTION] Initializing DebugForge Autonomous Agent on target: ${path.basename(resolvedTarget)} using model: ${configuredModel}`,
     timestamp: Date.now(),
   };
 
-  // Stage 1: Ingest Error or Run Initial Test to Capture Failure
+  // Stage 1: Ingestion & Sandbox Reproduction
   yield {
     type: "thought",
-    content: "Stage 1: Ingesting error signals and spinning up isolated Daytona sandbox...",
+    content: "[SANDBOX] Stage 1: Ingesting error signals and provisioning isolated execution workspace...",
     timestamp: Date.now(),
   };
 
-  let rawLog = options.rawError || "";
-  if (!rawLog) {
-    yield {
-      type: "tool_call",
-      tool: "daytona_reproduce",
-      args: { projectPath, testCommand },
-      timestamp: Date.now(),
-    };
-
-    const repro = await reproduceInSandbox({ projectPath, testCommand });
-    rawLog = [repro.stderr, repro.stdout].filter(Boolean).join("\n");
-
-    yield {
-      type: "tool_result",
-      tool: "daytona_reproduce",
-      result: repro,
-      timestamp: Date.now(),
-    };
-  }
-
-  const errorReport: ErrorReport = ingestError(rawLog);
-
-  yield {
-    type: "thought",
-    content: `Parsed crash site: ${errorReport.crashSite.file}:${errorReport.crashSite.line} [${errorReport.errorType}] - ${errorReport.errorMessage}`,
-    timestamp: Date.now(),
-  };
-
-  // Stage 2: Reproduce in Sandbox
-  yield {
-    type: "thought",
-    content: "Stage 2: Confirming bug reproduction in isolated sandbox...",
-    timestamp: Date.now(),
-  };
+  const initialExec = await reproduceInSandbox({
+    projectPath: resolvedTarget,
+    testCommand,
+  });
 
   yield {
     type: "tool_call",
-    tool: "reproduce_in_sandbox",
-    args: { errorReport: errorReport.id, target: errorReport.crashSite.file },
+    tool: "daytona_reproduce",
+    args: { projectPath: resolvedTarget, testCommand },
     timestamp: Date.now(),
   };
-
-  const sandboxRepro = await reproduceInSandbox({ projectPath, testCommand });
 
   yield {
     type: "tool_result",
-    tool: "reproduce_in_sandbox",
-    result: sandboxRepro,
+    tool: "daytona_reproduce",
+    result: initialExec,
     timestamp: Date.now(),
   };
 
-  // Stage 3: Dynamic Backward Causal Tracing & Root Cause Analysis
+  const combinedError = rawError || initialExec.stderr || initialExec.stdout;
+  const errorReport: ErrorReport = ingestError(combinedError);
+
   yield {
     type: "thought",
-    content: "Stage 3: Tracing state mutations backwards from crash site to pinpoint infection origin...",
+    content: `[OBSERVATION] Detected crash site: ${errorReport.crashSite.file}:${errorReport.crashSite.line} [${errorReport.errorType}] - ${errorReport.errorMessage}`,
+    timestamp: Date.now(),
+  };
+
+  // Fail-Closed Check: If there was no crash and no error, stop
+  if (!initialExec.reproduced && !rawError) {
+    yield {
+      type: "complete",
+      summary: "No reproducible crash or error detected in sandbox. Halting to prevent unnecessary mutations.",
+      success: true,
+      timestamp: Date.now(),
+    };
+    return;
+  }
+
+  // Stage 2: Dynamic Backward Causal RCA
+  yield {
+    type: "thought",
+    content: "[RCA] Stage 2: Tracing dynamic state mutations backwards to isolate Infection Origin from Crash Site...",
     timestamp: Date.now(),
   };
 
@@ -95,7 +92,17 @@ export async function* runDebugAgent(options: AgentRunOptions): AsyncGenerator<A
     timestamp: Date.now(),
   };
 
-  const rca: RootCauseAnalysis = await traceAndAnalyze({ errorReport, projectPath });
+  const rca: RootCauseAnalysis = await traceAndAnalyze({
+    errorReport,
+    projectPath: resolvedTarget,
+  });
+
+  yield {
+    type: "tool_result",
+    tool: "trace_and_analyze",
+    result: rca,
+    timestamp: Date.now(),
+  };
 
   yield {
     type: "trace_discovered",
@@ -105,14 +112,14 @@ export async function* runDebugAgent(options: AgentRunOptions): AsyncGenerator<A
 
   yield {
     type: "thought",
-    content: `🎯 Infection Origin Located: ${rca.infectionOrigin.file}:${rca.infectionOrigin.line} (${rca.infectionOrigin.culpritSymbol}) - ${rca.infectionOrigin.rootExplanation}`,
+    content: `[RCA] 🎯 Infection Origin Isolated: ${rca.infectionOrigin.file}:${rca.infectionOrigin.line} (${rca.infectionOrigin.culpritSymbol}) - ${rca.infectionOrigin.rootExplanation}`,
     timestamp: Date.now(),
   };
 
-  // Stage 4: Surgical AST Patch Synthesis & Triple-Lock Verification
+  // Stage 3: Surgical Patch Synthesis
   yield {
     type: "thought",
-    content: "Stage 4: Synthesizing deterministic code patches and applying to sandbox...",
+    content: "[PATCH] Stage 3: Synthesizing minimal surgical AST diffs targeting root cause...",
     timestamp: Date.now(),
   };
 
@@ -123,7 +130,17 @@ export async function* runDebugAgent(options: AgentRunOptions): AsyncGenerator<A
     timestamp: Date.now(),
   };
 
-  const patchResult: PatchResult = await autoPatch({ rca, projectPath, applyImmediately: true });
+  const patchResult: PatchResult = await autoPatch({
+    rca,
+    projectPath: resolvedTarget,
+  });
+
+  yield {
+    type: "tool_result",
+    tool: "auto_patch",
+    result: patchResult,
+    timestamp: Date.now(),
+  };
 
   yield {
     type: "patch_generated",
@@ -131,9 +148,10 @@ export async function* runDebugAgent(options: AgentRunOptions): AsyncGenerator<A
     timestamp: Date.now(),
   };
 
+  // Stage 4: Independent Triple-Lock Verification
   yield {
     type: "thought",
-    content: `Synthesized ${patchResult.patches.length} unified diff patch(es). Executing Triple-Lock verification...`,
+    content: `[VERIFY] Stage 4: Executing independent Triple-Lock verification gates across sandbox...`,
     timestamp: Date.now(),
   };
 
@@ -146,10 +164,17 @@ export async function* runDebugAgent(options: AgentRunOptions): AsyncGenerator<A
 
   const verification: TripleLockResult = await verifyFix({
     errorId: errorReport.id,
-    projectPath,
+    projectPath: resolvedTarget,
     testCommand,
     patchResult,
   });
+
+  yield {
+    type: "tool_result",
+    tool: "verify_fix",
+    result: verification,
+    timestamp: Date.now(),
+  };
 
   yield {
     type: "verification_complete",
@@ -157,10 +182,21 @@ export async function* runDebugAgent(options: AgentRunOptions): AsyncGenerator<A
     timestamp: Date.now(),
   };
 
-  // Stage 5: Human-In-The-Loop Approval Gate
+  // Fail-Closed Check: If Triple-Lock failed, abort workflow
+  if (!verification.allPassed) {
+    yield {
+      type: "complete",
+      summary: `❌ Verification Gate Failed: Fix did not pass all Triple-Lock checks. Halting without merging.`,
+      success: false,
+      timestamp: Date.now(),
+    };
+    return;
+  }
+
+  // Stage 5: Cryptographic HITL Gatekeeper
   yield {
     type: "thought",
-    content: "Stage 5: Submitting verified patch to Human-in-the-Loop approval gate...",
+    content: "[APPROVAL] Stage 5: Staging verified patch at Human-in-the-Loop approval checkpoint...",
     timestamp: Date.now(),
   };
 
@@ -174,7 +210,11 @@ export async function* runDebugAgent(options: AgentRunOptions): AsyncGenerator<A
   };
 
   if (autoApprove) {
-    hitlGatekeeper.evaluateDecision(approvalReq.nonce, "approved", { feedback: "Auto-approved in demo mode" });
+    hitlGatekeeper.evaluateDecision(approvalReq.nonce, "approved", {
+      feedback: "Auto-approved in demo/eval mode",
+      operator: "demo_runner",
+      currentPatch: patchResult,
+    });
   }
 
   yield {

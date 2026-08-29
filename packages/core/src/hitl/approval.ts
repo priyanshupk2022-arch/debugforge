@@ -3,6 +3,7 @@ import crypto from "node:crypto";
 
 export interface PendingApprovalEntry {
   patch: PatchResult;
+  patchHash: string;
   nonce: string;
   signature: string;
   createdAt: number;
@@ -16,22 +17,46 @@ export class HITLGatekeeper {
   private pendingApprovals: Map<string, PendingApprovalEntry> = new Map();
   private auditLog: HITLApproval[] = [];
 
-  constructor(secretKey = process.env.HITL_SECRET_KEY || "debugforge_secure_hitl_key_2026", ttlMs = 600000) {
-    this.secretKey = secretKey;
-    this.ttlMs = ttlMs; // 10 minutes default
+  constructor(secretKey?: string, ttlMs = 600000) {
+    const configuredKey = secretKey || process.env.HITL_SECRET_KEY;
+    if (!configuredKey) {
+      if (process.env.NODE_ENV === "production") {
+        throw new Error(
+          "[HITL Security Blocker] HITL_SECRET_KEY environment variable is REQUIRED in production. Startup blocked."
+        );
+      }
+      // Non-production fallback with explicit warning
+      this.secretKey = "debugforge_dev_only_secret_key";
+    } else {
+      this.secretKey = configuredKey;
+    }
+    this.ttlMs = ttlMs;
   }
 
-  createApprovalRequest(patch: PatchResult): { nonce: string; signature: string; expiresAt: number; patch: PatchResult } {
+  computePatchHash(patch: PatchResult): string {
+    const rawDiffs = patch.patches.map(p => `${p.filePath}:${p.diffHunk}`).join("\n---\n");
+    return crypto.createHash("sha256").update(rawDiffs).digest("hex");
+  }
+
+  createApprovalRequest(patch: PatchResult): {
+    nonce: string;
+    signature: string;
+    patchHash: string;
+    expiresAt: number;
+    patch: PatchResult;
+  } {
     const nonce = crypto.randomBytes(16).toString("hex");
     const expiresAt = Date.now() + this.ttlMs;
+    const patchHash = this.computePatchHash(patch);
 
     const signature = crypto
       .createHmac("sha256", this.secretKey)
-      .update(`${nonce}:${patch.id}:${expiresAt}`)
+      .update(`${nonce}:${patch.id}:${patchHash}:${expiresAt}`)
       .digest("hex");
 
     this.pendingApprovals.set(nonce, {
       patch,
+      patchHash,
       nonce,
       signature,
       createdAt: Date.now(),
@@ -39,13 +64,13 @@ export class HITLGatekeeper {
       used: false,
     });
 
-    return { nonce, signature, expiresAt, patch };
+    return { nonce, signature, patchHash, expiresAt, patch };
   }
 
   evaluateDecision(
     nonce: string,
     decision: "approved" | "rejected" | "edited",
-    options: { feedback?: string; operator?: string; signature?: string } = {}
+    options: { feedback?: string; operator?: string; signature?: string; currentPatch?: PatchResult } = {}
   ): HITLApproval {
     const req = this.pendingApprovals.get(nonce);
 
@@ -62,15 +87,28 @@ export class HITLGatekeeper {
       throw new Error(`[HITL Security Timeout] Approval request for nonce ${nonce} has expired.`);
     }
 
-    // Optional cryptographic signature check if signature is provided
+    // Tamper Detection: If current patch is provided, assert its hash matches the approved hash
+    if (options.currentPatch) {
+      const currentHash = this.computePatchHash(options.currentPatch);
+      if (currentHash !== req.patchHash) {
+        throw new Error(
+          `[HITL Tamper Detection] Patch content has been modified after approval request creation. Evaluation blocked.`
+        );
+      }
+    }
+
+    // Constant-Time Cryptographic Signature Validation if signature provided
     if (options.signature) {
       const expectedSig = crypto
         .createHmac("sha256", this.secretKey)
-        .update(`${nonce}:${req.patch.id}:${req.expiresAt}`)
+        .update(`${nonce}:${req.patch.id}:${req.patchHash}:${req.expiresAt}`)
         .digest("hex");
 
-      if (options.signature !== expectedSig) {
-        throw new Error(`[HITL Signature Mismatch] Provided signature is invalid.`);
+      const sigBuf = Buffer.from(options.signature, "hex");
+      const expBuf = Buffer.from(expectedSig, "hex");
+
+      if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
+        throw new Error(`[HITL Signature Mismatch] Provided signature is invalid or tampered.`);
       }
     }
 

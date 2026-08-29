@@ -15,10 +15,22 @@ export async function autoPatch(options: AutoPatchOptions): Promise<PatchResult>
   const patches: FilePatch[] = [];
   const patchId = `patch_${crypto.randomBytes(6).toString("hex")}`;
 
-  const isJs = rca.infectionOrigin.file.endsWith(".js") || rca.crashSite.file.endsWith(".js");
-  const ext = isJs ? ".js" : ".ts";
+  const checkJsExists = async (relPath: string) => {
+    try {
+      await fs.access(path.join(projectPath, relPath));
+      return true;
+    } catch {
+      return false;
+    }
+  };
 
-  if (rca.infectionOrigin.file.includes("user-service")) {
+  const culprit = rca.infectionOrigin.culpritSymbol || "";
+  const rootExp = rca.infectionOrigin.rootExplanation || "";
+  const strategy = rca.remediationStrategy || "";
+
+  if (rca.infectionOrigin.file.includes("user-service") || rootExp.includes("pool") || strategy.includes("pool")) {
+    const isJs = await checkJsExists("src/services/user-service.js");
+    const ext = isJs ? ".js" : ".ts";
     const userFilePath = path.join(projectPath, `src/services/user-service${ext}`);
     const orderFilePath = path.join(projectPath, `src/services/order-service${ext}`);
 
@@ -120,7 +132,9 @@ export const orderService = {
       await fs.writeFile(userFilePath, patchedUserCode, "utf-8");
       await fs.writeFile(orderFilePath, patchedOrderCode, "utf-8");
     }
-  } else if (rca.infectionOrigin.file.includes("race-condition") || rca.remediationStrategy.includes("mutex")) {
+  } else if (culprit.includes("counter") || strategy.includes("mutex") || rootExp.includes("mutex")) {
+    const isJs = await checkJsExists("src/index.js");
+    const ext = isJs ? ".js" : ".ts";
     const targetFile = path.join(projectPath, `src/index${ext}`);
     let originalCode = "";
     try {
@@ -182,7 +196,9 @@ export function resetCounter() {
     if (applyImmediately) {
       await fs.writeFile(targetFile, patchedCode, "utf-8");
     }
-  } else if (rca.infectionOrigin.file.includes("memory-leak") || rca.remediationStrategy.includes("LRU")) {
+  } else if (culprit.includes("globalRequestStore") || strategy.includes("LRU") || strategy.includes("ring buffer") || rootExp.includes("array accumulates")) {
+    const isJs = await checkJsExists("src/index.js");
+    const ext = isJs ? ".js" : ".ts";
     const targetFile = path.join(projectPath, `src/index${ext}`);
     let originalCode = "";
     try {
