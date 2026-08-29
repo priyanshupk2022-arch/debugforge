@@ -41,7 +41,7 @@ describe("DebugForge Core Engine Suite", () => {
     const req = hitlGatekeeper.createApprovalRequest(fakePatch);
     assert.ok(req.nonce.length > 0);
 
-    const decision = hitlGatekeeper.evaluateDecision(req.nonce, "approved", "Good fix");
+    const decision = hitlGatekeeper.evaluateDecision(req.nonce, "approved", { feedback: "Good fix" });
     assert.strictEqual(decision.status, "approved");
     assert.strictEqual(decision.patchId, "patch_test_123");
   });

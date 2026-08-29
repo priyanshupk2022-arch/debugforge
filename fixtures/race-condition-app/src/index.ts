@@ -1,17 +1,35 @@
+// src/index.ts (Patched by DebugForge with Async Mutex)
 let counter = 0;
+let lockQueue = Promise.resolve();
 
-// Bug: Unsynchronized asynchronous read-modify-write operation
-export async function incrementCounter(): Promise<number> {
-  const current = counter;
-  await new Promise(r => setTimeout(r, 5)); // Simulates IO/DB latency
-  counter = current + 1;
+function withLock(fn) {
+  let release;
+  const nextLock = new Promise(resolve => { release = resolve; });
+  const currentLock = lockQueue;
+  lockQueue = currentLock.then(() => nextLock);
+
+  return currentLock.then(async () => {
+    try {
+      return await fn();
+    } finally {
+      release();
+    }
+  });
+}
+
+export async function incrementCounter() {
+  return await withLock(async () => {
+    const current = counter;
+    await new Promise(r => setTimeout(r, 2));
+    counter = current + 1;
+    return counter;
+  });
+}
+
+export function getCounter() {
   return counter;
 }
 
-export function getCounter(): number {
-  return counter;
-}
-
-export function resetCounter(): void {
+export function resetCounter() {
   counter = 0;
 }

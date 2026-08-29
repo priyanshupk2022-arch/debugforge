@@ -1,19 +1,33 @@
-export interface User {
-  id: string;
-  name: string;
-  tier: string;
+// user-service.ts (Patched by DebugForge)
+class ConnectionPool {
+  constructor(max = 5) {
+    this.max = max;
+    this.active = 0;
+  }
+
+  async acquire() {
+    if (this.active >= this.max) {
+      await new Promise(r => setTimeout(r, 10));
+    }
+    this.active++;
+    return true;
+  }
+
+  release() {
+    if (this.active > 0) this.active--;
+  }
 }
 
-// Simulated connection pool exhaustion bug
-let activeConnections = 5;
-const maxConnections = 5;
+const pool = new ConnectionPool();
 
 export const userService = {
-  async findById(userId: string): Promise<User | undefined> {
-    if (activeConnections >= maxConnections) {
-      // Bug: Silently returns undefined when pool exhausted instead of throwing or queuing
-      return undefined;
+  async findById(userId) {
+    await pool.acquire();
+    try {
+      if (userId === "unknown") return null;
+      return { id: userId, name: "Alice", tier: "premium" };
+    } finally {
+      pool.release();
     }
-    return { id: userId, name: "Alice", tier: "premium" };
   }
 };

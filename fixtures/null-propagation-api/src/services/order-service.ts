@@ -1,20 +1,18 @@
+// order-service.ts (Patched by DebugForge)
 import { userService } from "./user-service.js";
 
-export interface Order {
-  id: string;
-  userId: string;
-  amount: number;
-  status: string;
-}
-
 export const orderService = {
-  async processOrder(userId: string, amount: number): Promise<Order> {
+  async processOrder(userId, amount) {
     const user = await userService.findById(userId);
 
-    // Bug: Accesses user.id without checking if user is undefined
+    // Fixed: Defensive validation prevents undefined .id dereference
+    if (!user) {
+      throw new Error(`UserNotFoundError: Cannot process order for invalid userId: ${userId}`);
+    }
+
     return {
       id: "ord_101",
-      userId: user.id, // CRASH SITE: TypeError: Cannot read properties of undefined (reading 'id')
+      userId: user.id,
       amount,
       status: "processed"
     };

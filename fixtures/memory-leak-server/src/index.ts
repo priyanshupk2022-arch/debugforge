@@ -1,19 +1,41 @@
-// Bug: Global unbounded array accumulates request objects with no eviction limit
-const globalRequestStore: Array<{ id: string; timestamp: number }> = [];
+// src/index.ts (Patched by DebugForge with Bounded Ring Buffer)
+class RingBuffer {
+  constructor(capacity = 50) {
+    this.capacity = capacity;
+    this.buffer = [];
+  }
 
-export function handleIncomingRequest(reqId: string): { status: string; totalStored: number } {
+  push(item) {
+    if (this.buffer.length >= this.capacity) {
+      this.buffer.shift(); // Evict oldest entry
+    }
+    this.buffer.push(item);
+  }
+
+  size() {
+    return this.buffer.length;
+  }
+
+  clear() {
+    this.buffer.length = 0;
+  }
+}
+
+const globalRequestStore = new RingBuffer(50);
+
+export function handleIncomingRequest(reqId) {
   globalRequestStore.push({
     id: reqId,
-    timestamp: Date.now(),
+    timestamp: Date.now()
   });
 
-  return { status: "ok", totalStored: globalRequestStore.length };
+  return { status: "ok", totalStored: globalRequestStore.size() };
 }
 
-export function getCacheSize(): number {
-  return globalRequestStore.length;
+export function getCacheSize() {
+  return globalRequestStore.size();
 }
 
-export function clearStore(): void {
-  globalRequestStore.length = 0;
+export function clearStore() {
+  globalRequestStore.clear();
 }

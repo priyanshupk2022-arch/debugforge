@@ -174,7 +174,7 @@ export async function* runDebugAgent(options: AgentRunOptions): AsyncGenerator<A
   };
 
   if (autoApprove) {
-    hitlGatekeeper.evaluateDecision(approvalReq.nonce, "approved", "Auto-approved in demo mode");
+    hitlGatekeeper.evaluateDecision(approvalReq.nonce, "approved", { feedback: "Auto-approved in demo mode" });
   }
 
   yield {
