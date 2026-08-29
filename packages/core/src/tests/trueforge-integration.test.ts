@@ -1,51 +1,63 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
 import { TrueForge } from "@truefoundry/trueforge-sdk";
-import { TrueForgeHarnessBridge, trueforgeHarness } from "../mcp/trueforge-runtime.js";
+import { TrueForgeHarnessBridge } from "../mcp/trueforge-runtime.js";
 
-describe("TrueForge Official SDK Integration Test", () => {
-  it("should successfully instantiate the official @truefoundry/trueforge-sdk client", () => {
+describe("TrueForge Official SDK Architecture & Contract Test", () => {
+  it("should verify official @truefoundry/trueforge-sdk API structure and client resources", () => {
     const client = new TrueForge({
       baseUrl: "http://localhost:8080",
-      token: "tf_test_key_123",
+      token: "tf_test_token_xyz",
     });
 
     assert.ok(client);
-    assert.strictEqual(typeof client.sessions, "object");
-    assert.strictEqual(typeof client.mcpServers, "object");
-    assert.strictEqual(typeof client.agents, "object");
-    assert.strictEqual(typeof client.models, "object");
+    assert.strictEqual(typeof client.agents.create, "function");
+    assert.strictEqual(typeof client.agents.list, "function");
+    assert.strictEqual(typeof client.settings.mcpServers.createOrUpdate, "function");
+    assert.strictEqual(typeof client.sessions.create, "function");
+    assert.strictEqual(typeof client.sessions.createTurnStream, "function");
+    assert.strictEqual(typeof client.server.getCapabilities, "function");
   });
 
-  it("should register all 5 DebugForge MCP tools on the TrueForge harness bridge", async () => {
-    const bridge = new TrueForgeHarnessBridge();
-    const initResult = await bridge.initializeRemoteHarness();
-
-    assert.ok(initResult.registeredTools.includes("debugforge_ingest_error"));
-    assert.ok(initResult.registeredTools.includes("debugforge_reproduce_in_sandbox"));
-    assert.ok(initResult.registeredTools.includes("debugforge_trace_and_analyze"));
-    assert.ok(initResult.registeredTools.includes("debugforge_auto_patch"));
-    assert.ok(initResult.registeredTools.includes("debugforge_verify_fix"));
-    assert.strictEqual(initResult.registeredTools.length, 5);
-  });
-
-  it("should create TrueForge sessions and stream turn events", async () => {
-    const sessionId = await trueforgeHarness.createSession(process.cwd());
-    assert.ok(sessionId.startsWith("tf_sess_"));
-
-    const turnStream = trueforgeHarness.createTurnStream(sessionId, {
-      prompt: "Diagnostic test",
-      rawError: "TypeError: Cannot read properties of undefined (reading 'test')",
-      autoApprove: true,
+  it("should fail closed when TRUEFORGE_MODE=required and TrueForge server is unconfigured", async () => {
+    const bridge = new TrueForgeHarnessBridge({
+      mode: "required",
+      baseUrl: undefined,
     });
 
-    const events = [];
-    for await (const event of turnStream) {
-      events.push(event);
-      if (events.length >= 2) break; // Sample turn stream
-    }
+    await assert.rejects(
+      async () => {
+        await bridge.initializeHarness();
+      },
+      (err: Error) => {
+        assert.ok(err.message.includes("[TrueForge Harness Blocker]"));
+        return true;
+      }
+    );
+  });
 
-    assert.ok(events.length >= 2);
-    assert.strictEqual(events[0].type, "thought");
+  it("should explicitly label LOCAL_DEV_MODE when running offline without live server", async () => {
+    const bridge = new TrueForgeHarnessBridge({
+      mode: "local",
+    });
+
+    const init = await bridge.initializeHarness();
+    assert.strictEqual(init.mode, "LOCAL_DEV_MODE");
+    assert.strictEqual(bridge.executionMode, "LOCAL_DEV_MODE");
+
+    const sessionId = await bridge.createSession(process.cwd());
+    assert.ok(sessionId.startsWith("local_dev_sess_"));
+  });
+
+  it("should register all 5 standard DebugForge MCP tools", async () => {
+    const bridge = new TrueForgeHarnessBridge();
+    const init = await bridge.initializeHarness();
+
+    assert.strictEqual(init.registeredTools.length, 5);
+    assert.ok(init.registeredTools.includes("debugforge_ingest_error"));
+    assert.ok(init.registeredTools.includes("debugforge_reproduce_in_sandbox"));
+    assert.ok(init.registeredTools.includes("debugforge_trace_and_analyze"));
+    assert.ok(init.registeredTools.includes("debugforge_auto_patch"));
+    assert.ok(init.registeredTools.includes("debugforge_verify_fix"));
   });
 });

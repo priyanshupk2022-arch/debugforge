@@ -5,40 +5,57 @@
 
 ---
 
-## 🏗️ System Components
+## 🏗️ System Components & Execution Paths
+
+### 1. Production Mode: Live TrueForge Harness & Server Architecture
+In live TrueForge integration mode, DebugForge operates as an autonomous agent and registered MCP server inside the official TrueForge Agent Harness:
 
 ```
-User / Terminal / Web UI
+CLI / Web / User Request
           │
           ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                 TRUEFORGE AGENT HARNESS                     │
-│  ┌───────────────────────┐   ┌───────────────────────────┐  │
-│  │   Agent ReAct Loop    │   │    Model Provider Router  │  │
-│  │  (Turn State Machine) │   │     (GPT-4o / o3-mini)    │  │
-│  └──────────┬────────────┘   └─────────────┬─────────────┘  │
-│             │                              │                │
-│             ▼                              ▼                │
-│  ┌───────────────────────────────────────────────────────┐  │
-│  │          Model Context Protocol (MCP) Server          │  │
-│  │  • debugforge_ingest_error                            │  │
-│  │  • debugforge_reproduce_in_sandbox                    │  │
-│  │  • debugforge_trace_and_analyze                       │  │
-│  │  • debugforge_auto_patch                              │  │
-│  │  • debugforge_verify_fix                              │  │
-│  └──────────────────────────┬────────────────────────────┘  │
-└─────────────────────────────┼───────────────────────────────┘
+│             OFFICIAL TRUEFORGE HARNESS SERVER               │
+│               (@truefoundry/trueforge-sdk)                  │
+│                                                             │
+│  1. Agent Registration:                                     │
+│     client.agents.create({ manifest: { model, mcpServers }})│
+│                                                             │
+│  2. MCP Server Registration:                                │
+│     client.settings.mcpServers.createOrUpdate(...)          │
+│                                                             │
+│  3. Session Lifecycle:                                      │
+│     client.sessions.create({ agent: { name } })             │
+│                                                             │
+│  4. Turn Execution & SSE Stream:                            │
+│     client.sessions.createTurnStream(session_id, input)     │
+└─────────────────────────────┬───────────────────────────────┘
+                              │ Calls registered MCP tools
+                              ▼
+┌─────────────────────────────────────────────────────────────┐
+│          DEBUGFORGE MCP SERVER (@modelcontextprotocol/sdk)  │
+│  • debugforge_ingest_error                                  │
+│  • debugforge_reproduce_in_sandbox                          │
+│  • debugforge_trace_and_analyze                             │
+│  • debugforge_auto_patch                                    │
+│  • debugforge_verify_fix                                    │
+└─────────────────────────────┬───────────────────────────────┘
                               │
        ┌──────────────────────┴──────────────────────┐
        ▼                                             ▼
 ┌──────────────────────────────┐     ┌──────────────────────────────┐
-│       DAYTONA SANDBOX        │     │         HITL GATE            │
-│  • Remote Container (Node22) │     │  • HMAC-SHA256 Signatures    │
-│  • Ephemeral Lifecycle       │     │  • Anti-Replay Nonces        │
-│  • Stdout/Stderr/Exit-Code   │     │  • Expiration TTL            │
-│  • Isolated Working Copy     │     │  • Audit Trail Logging       │
+│   DAYTONA SANDBOX RUNNER     │     │       HITL GATEKEEPER        │
+│      (@daytona/sdk)          │     │  • HMAC-SHA256 Signatures    │
+│  • Remote Ephemeral Container│     │  • Patch Hash Tamper Detect  │
+│  • Command Execution & Logs  │     │  • Anti-Replay Nonces        │
+│  • Isolated Workspace Copy   │     │  • Expiration TTL            │
 └──────────────────────────────┘     └──────────────────────────────┘
 ```
+
+### 2. Local Developer Mode (`LOCAL_DEV_MODE: NOT_TRUEFORGE_RUNTIME`)
+For offline unit tests, local development, and fast single-process CLI demos without an active TrueForge server cluster, DebugForge provides an explicit local reasoning engine (`runDebugAgent()`).
+- **Clear Labeling**: Explicitly logs `[LOCAL_DEV_MODE: NOT_TRUEFORGE_RUNTIME]` with zero false claims of live server connections.
+- **Fail-Closed Gate**: In `TRUEFORGE_MODE=required`, unconfigured or unreachable TrueForge servers halt immediately with a fail-closed blocker exception.
 
 ---
 
@@ -49,7 +66,7 @@ User / Terminal / Web UI
 - Extracts culprit frames, function names, source file paths, and line numbers into strongly-typed Zod error models.
 
 ### 2. Reproduce in Sandbox (`debugforge_reproduce_in_sandbox`)
-- Spins up an ephemeral **Daytona Sandbox** container.
+- Spins up an ephemeral **Daytona Sandbox** container (`@daytona/sdk`).
 - Materializes the target project into the isolated container.
 - Executes reproduction test commands with strict timeouts and captures exact exit codes and execution logs.
 
@@ -66,14 +83,14 @@ User / Terminal / Web UI
 
 ### 5. Cryptographic HITL Gatekeeper (`hitlGatekeeper`)
 - Blocks automatic workspace merging.
-- Emits single-use HMAC-SHA256 signed nonces with expiration timers.
+- Emits single-use HMAC-SHA256 signed nonces with expiration timers and SHA-256 patch diff hash tamper verification.
 - Requires operator sign-off before applying changes.
 
 ---
 
 ## 📦 Monorepo Structure
 
-- `packages/core`: Core ReAct loop, TrueForge MCP server, Daytona sandbox manager, HITL gatekeeper, and tools.
+- `packages/core`: Official `@truefoundry/trueforge-sdk` integration, TrueForge MCP server, Daytona sandbox runner, HITL gatekeeper, and domain tools.
 - `packages/cli`: Interactive terminal UI with Claude Code-style live streaming thoughts, trace tree views, and HUD status bar.
 - `packages/web`: React 19 + Tailwind CSS landing page and interactive failure simulator.
 - `fixtures/`: 3 reproducible real-world bug testbeds (`null-propagation-api`, `race-condition-app`, `memory-leak-server`).
