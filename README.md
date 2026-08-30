@@ -60,7 +60,7 @@ debugforge agent "Fix the silent null crash under database connection pool load"
 
 DebugForge enforces automated pull request code quality and security reviews on every substantive change via **Qodo PR-Agent**:
 
-- **Representative Pull Request**: [PR #1 — Production Hardening & TrueForge SDK Integration](https://github.com/priyanshupk2022-arch/zeroshield/pull/1)
+- **Representative Pull Request**: [PR #2 — TrueForge Standalone Harness, Real MCP Server & Live E2E Integration](https://github.com/priyanshupk2022-arch/zeroshield/pull/2) (Merged)
 - **Qodo Review Findings**:
   - Identified requirement for explicit `DAYTONA_MODE=required` fail-closed verification.
   - Recommended cryptographic HMAC-SHA256 signature binding and anti-replay nonces for Human-in-the-Loop approval checkpoints.
