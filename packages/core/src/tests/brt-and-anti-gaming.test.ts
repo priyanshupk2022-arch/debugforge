@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert";
 import * as path from "path";
+import * as fs from "node:fs";
 import {
   generateReproductionCandidate,
   validateBRTPrePatch,
@@ -166,7 +167,9 @@ describe("DebugForge Bug Reproduction Test (BRT) & Anti-Gaming Sentinel Suite", 
   });
 
   it("should capture and verify workspace integrity snapshots against unauthorized mutations", () => {
-    const fixtureDir = path.resolve(process.cwd(), "fixtures/null-propagation-api");
+    const fixtureDir = fs.existsSync(path.resolve(process.cwd(), "fixtures/null-propagation-api"))
+      ? path.resolve(process.cwd(), "fixtures/null-propagation-api")
+      : path.resolve(process.cwd(), "../../fixtures/null-propagation-api");
     const snapshot = captureWorkspaceIntegritySnapshot(fixtureDir, ["*.js", "*.json"]);
 
     assert.ok(snapshot.files.size > 0);
