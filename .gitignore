@@ -33,3 +33,4 @@ data/*.db-shm
 .mcp.json
 mcp.json
 .cursor/
+.agents/
