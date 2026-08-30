@@ -12,7 +12,7 @@
     "build:all": "npm --prefix packages/core run build && npm --prefix packages/cli run build && npm --prefix packages/web run build",
     "mcp": "node packages/core/dist/mcp/http-server.js",
     "dev": "npm --prefix packages/web run dev",
-    "test": "node --test packages/core/dist/tests/core.test.js packages/core/dist/tests/adversarial.test.js packages/core/dist/tests/brt-and-anti-gaming.test.js packages/core/dist/tests/nextgen-subsystems.test.js packages/core/dist/tests/trueforge-integration.test.js packages/core/dist/tests/trueforge-live.test.js",
+    "test": "node --test packages/core/dist/tests/core.test.js packages/core/dist/tests/adversarial.test.js packages/core/dist/tests/brt-and-anti-gaming.test.js packages/core/dist/tests/nextgen-subsystems.test.js packages/core/dist/tests/remediation.test.js packages/core/dist/tests/trueforge-integration.test.js packages/core/dist/tests/trueforge-live.test.js",
     "bench": "node -e \"const { benchmarkRunner } = require('./packages/core/dist/bench/bench-runner.js'); benchmarkRunner.runBenchmark().then(r => console.log(JSON.stringify(r, null, 2)));\"",
     "test:live": "node -e \"process.env.TRUEFORGE_LIVE_TEST='true'; require('child_process').execSync('node --test packages/core/dist/tests/trueforge-live.test.js', { stdio: 'inherit' });\"",
     "test:provider": "node -e \"process.env.REAL_PROVIDER_TEST='true'; require('child_process').execSync('node --test packages/core/dist/tests/provider-smoke.test.js', { stdio: 'inherit' });\"",

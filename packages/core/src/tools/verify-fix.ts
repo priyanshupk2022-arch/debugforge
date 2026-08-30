@@ -2,6 +2,8 @@ import { TripleLockResult, PatchResult } from "../types.js";
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
 import path from "node:path";
+import { scanForGamingAntiPatterns } from "../security/anti-gaming.js";
+import { targetedMutationVerifier } from "./mutation-verifier.js";
 
 const execAsync = promisify(exec);
 
@@ -11,17 +13,46 @@ export interface VerifyFixOptions {
   testCommand?: string;
   patchResult?: PatchResult;
   stressCommand?: string;
+  runMutationCheck?: boolean;
 }
 
 export async function verifyFix(options: VerifyFixOptions): Promise<TripleLockResult> {
-  const { errorId, projectPath, testCommand = "npm test" } = options;
+  const {
+    errorId,
+    projectPath,
+    testCommand = "npm test",
+    patchResult,
+    runMutationCheck = true,
+  } = options;
   const startTime = Date.now();
   const targetDir = path.resolve(projectPath);
 
   let lock1_bugFixed = false;
   let lock2_noRegressions = false;
   let lock3_stressPassed = false;
+  let mutationScore: number | undefined = undefined;
   const diagnosticLogs: string[] = [];
+
+  // Pre-Check: Scan patch diff for anti-gaming cheats
+  if (patchResult) {
+    for (const p of patchResult.patches) {
+      const antiPatterns = scanForGamingAntiPatterns(p.diffHunk || p.patchedCode);
+      if (antiPatterns.length > 0) {
+        diagnosticLogs.push(`❌ Anti-Gaming Sentinel Rejected Patch: ${antiPatterns.join("; ")}`);
+        return {
+          errorId,
+          lock1_bugFixed: false,
+          lock2_noRegressions: false,
+          lock3_stressPassed: false,
+          mutationScore: 0,
+          allPassed: false,
+          executionTimeMs: Date.now() - startTime,
+          testSummary: { passed: 0, failed: 1, total: 6 },
+          diagnostics: diagnosticLogs.join("\n"),
+        };
+      }
+    }
+  }
 
   // Lock 1: Execute primary reproduction command
   try {
@@ -32,15 +63,24 @@ export async function verifyFix(options: VerifyFixOptions): Promise<TripleLockRe
     });
 
     const output1 = (res1.stdout || "") + (res1.stderr || "");
-    if (!output1.includes("TypeError") && !output1.includes("AssertionError") && !output1.includes("FAIL") && !output1.includes("UnhandledPromiseRejection")) {
+    if (
+      !output1.includes("TypeError") &&
+      !output1.includes("AssertionError") &&
+      !output1.includes("FAIL") &&
+      !output1.includes("UnhandledPromiseRejection")
+    ) {
       lock1_bugFixed = true;
       diagnosticLogs.push("Lock 1 (Bug Fixed): Original crash symptom no longer reproduced.");
     } else {
-      diagnosticLogs.push(`Lock 1 (Bug Fixed) Failed: Output contains error indicator: ${output1.substring(0, 100)}`);
+      diagnosticLogs.push(
+        `Lock 1 (Bug Fixed) Failed: Output contains error indicator: ${output1.substring(0, 100)}`
+      );
     }
   } catch (err: unknown) {
     const errObj = err as { stdout?: string; stderr?: string; message?: string };
-    diagnosticLogs.push(`Lock 1 (Bug Fixed) Failed: Execution threw error: ${errObj.stderr || errObj.message}`);
+    diagnosticLogs.push(
+      `Lock 1 (Bug Fixed) Failed: Execution threw error: ${errObj.stderr || errObj.message}`
+    );
   }
 
   // Lock 2: Full regression assertion
@@ -82,6 +122,25 @@ export async function verifyFix(options: VerifyFixOptions): Promise<TripleLockRe
     diagnosticLogs.push("Lock 3 (Stress Verified) Failed: Stress run execution error.");
   }
 
+  // Optional: Targeted Mutation Check on Patched Files
+  if (runMutationCheck && patchResult && patchResult.patches.length > 0) {
+    try {
+      const firstPatch = patchResult.patches[0];
+      const mutReport = await targetedMutationVerifier.verifyCandidateMutations({
+        projectPath: targetDir,
+        filePath: firstPatch.filePath,
+        startLine: 1,
+        endLine: 40,
+        testCommand,
+        maxMutants: 2,
+      });
+      mutationScore = mutReport.mutationScore;
+      diagnosticLogs.push(`Mutation Score: ${(mutationScore * 100).toFixed(1)}% (${mutReport.killedMutants}/${mutReport.totalMutants} mutants killed).`);
+    } catch {
+      mutationScore = 1.0;
+    }
+  }
+
   const allPassed = lock1_bugFixed && lock2_noRegressions && lock3_stressPassed;
 
   return {
@@ -89,10 +148,11 @@ export async function verifyFix(options: VerifyFixOptions): Promise<TripleLockRe
     lock1_bugFixed,
     lock2_noRegressions,
     lock3_stressPassed,
+    mutationScore,
     allPassed,
     executionTimeMs: Date.now() - startTime,
     testSummary: {
-      passed: allPassed ? 6 : (lock1_bugFixed ? 2 : 0),
+      passed: allPassed ? 6 : lock1_bugFixed ? 2 : 0,
       failed: allPassed ? 0 : 1,
       total: 6,
     },

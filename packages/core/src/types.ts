@@ -60,6 +60,19 @@ export const CausalStepSchema = z.object({
   isCrashSite: z.boolean().default(false),
 });
 
+export const OracleConfidenceStateSchema = z.enum(["PROVEN", "INFERRED", "AMBIGUOUS"]);
+export type OracleConfidenceState = z.infer<typeof OracleConfidenceStateSchema>;
+
+export const AlternativeHypothesisSchema = z.object({
+  id: z.string(),
+  description: z.string(),
+  culpritFile: z.string(),
+  culpritLine: z.number().optional(),
+  likelihood: z.number().min(0).max(1),
+  reasoning: z.string(),
+});
+export type AlternativeHypothesis = z.infer<typeof AlternativeHypothesisSchema>;
+
 export const RootCauseAnalysisSchema = z.object({
   errorId: z.string(),
   infectionOrigin: z.object({
@@ -76,10 +89,51 @@ export const RootCauseAnalysisSchema = z.object({
   causalChain: z.array(CausalStepSchema),
   remediationStrategy: z.string(),
   confidence: z.number().min(0).max(1),
+  oracleState: OracleConfidenceStateSchema.optional().default("INFERRED"),
+  alternativeHypotheses: z.array(AlternativeHypothesisSchema).optional(),
+  evidenceSummary: z.string().optional(),
 });
 
 export type CausalStep = z.infer<typeof CausalStepSchema>;
 export type RootCauseAnalysis = z.infer<typeof RootCauseAnalysisSchema>;
+
+// Blast Radius Types
+export const BlastRadiusResultSchema = z.object({
+  targetFile: z.string(),
+  changedSymbols: z.array(z.string()),
+  directCallerFiles: z.array(z.string()),
+  dependentTestFiles: z.array(z.string()),
+  exportedSymbols: z.array(z.string()),
+  widenVerificationRequired: z.boolean(),
+  recommendedTestScope: z.array(z.string()),
+  confidence: z.number().min(0).max(1),
+  rationale: z.string(),
+});
+export type BlastRadiusResult = z.infer<typeof BlastRadiusResultSchema>;
+
+// Mutation Verification Types
+export const MutantResultSchema = z.object({
+  mutantId: z.string(),
+  filePath: z.string(),
+  lineNumber: z.number(),
+  mutationType: z.string(),
+  originalCode: z.string(),
+  mutatedCode: z.string(),
+  status: z.enum(["KILLED", "SURVIVED", "ERROR"]),
+  executionDetails: z.string().optional(),
+});
+export type MutantResult = z.infer<typeof MutantResultSchema>;
+
+export const MutationVerificationResultSchema = z.object({
+  totalMutants: z.number(),
+  killedMutants: z.number(),
+  survivedMutants: z.number(),
+  mutationScore: z.number().min(0).max(1),
+  passed: z.boolean(),
+  mutants: z.array(MutantResultSchema),
+  diagnostics: z.string(),
+});
+export type MutationVerificationResult = z.infer<typeof MutationVerificationResultSchema>;
 
 // Code Patch & Diff Types
 export const FilePatchSchema = z.object({
@@ -96,6 +150,8 @@ export const PatchResultSchema = z.object({
   patches: z.array(FilePatchSchema),
   summary: z.string(),
   synthesizedAt: z.number(),
+  blastRadius: BlastRadiusResultSchema.optional(),
+  mutationReport: MutationVerificationResultSchema.optional(),
 });
 
 export type FilePatch = z.infer<typeof FilePatchSchema>;
@@ -107,6 +163,7 @@ export const TripleLockResultSchema = z.object({
   lock1_bugFixed: z.boolean(),
   lock2_noRegressions: z.boolean(),
   lock3_stressPassed: z.boolean(),
+  mutationScore: z.number().min(0).max(1).optional(),
   allPassed: z.boolean(),
   executionTimeMs: z.number(),
   testSummary: z.object({
@@ -138,6 +195,7 @@ export type AgentEvent =
   | { type: "trace_discovered"; rca: RootCauseAnalysis; timestamp: number }
   | { type: "patch_generated"; patch: PatchResult; timestamp: number }
   | { type: "verification_complete"; verification: TripleLockResult; timestamp: number }
+  | { type: "supervisor_intervention"; anomaly: unknown; directive: string; timestamp: number }
   | { type: "approval_requested"; patch: PatchResult; nonce: string; timestamp: number }
   | { type: "complete"; summary: string; success: boolean; timestamp: number };
 
@@ -147,5 +205,7 @@ export interface AgentOptions {
   projectPath?: string;
   testCommand?: string;
   autoApprove?: boolean;
+  maxAttempts?: number;
 }
+
 

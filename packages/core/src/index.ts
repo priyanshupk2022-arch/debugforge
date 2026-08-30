@@ -24,5 +24,6 @@ export * from "./bench/tasks.js";
 export * from "./bench/bench-runner.js";
 export * from "./daytona/sandbox.js";
 export * from "./hitl/approval.js";
+export * from "./tools/blast-radius.js";
+export * from "./tools/mutation-verifier.js";
 export * from "./mcp/server.js";
-

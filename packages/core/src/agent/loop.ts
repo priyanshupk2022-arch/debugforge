@@ -9,11 +9,15 @@ import {
 import { ingestError } from "../tools/ingest-error.js";
 import { reproduceInSandbox } from "../tools/reproduce.js";
 import { traceAndAnalyze } from "../tools/trace-analyze.js";
-import { autoPatch } from "../tools/auto-patch.js";
+import { autoPatch, applyPatch } from "../tools/auto-patch.js";
 import { verifyFix } from "../tools/verify-fix.js";
 import { hitlGatekeeper } from "../hitl/approval.js";
 import { resolveModelProviderConfig, formatProviderLabel } from "./provider.js";
+import { taskMemory } from "../memory/task-memory.js";
+import { autonomousSupervisor } from "../supervisor/supervisor.js";
+import { blastRadiusAnalyzer } from "../tools/blast-radius.js";
 import path from "node:path";
+import crypto from "node:crypto";
 
 export async function* runDebugAgent(options: AgentOptions): AsyncGenerator<AgentEvent> {
   const {
@@ -21,9 +25,13 @@ export async function* runDebugAgent(options: AgentOptions): AsyncGenerator<Agen
     projectPath = process.cwd(),
     testCommand = "npm test",
     autoApprove = false,
+    maxAttempts = 3,
   } = options;
 
   const resolvedTarget = path.resolve(projectPath);
+  const taskId = `task_${crypto.randomBytes(4).toString("hex")}`;
+  taskMemory.getOrCreateTask(taskId);
+
   const providerConfig = resolveModelProviderConfig();
   const providerLabel = formatProviderLabel(providerConfig);
 
@@ -62,6 +70,7 @@ export async function* runDebugAgent(options: AgentOptions): AsyncGenerator<Agen
 
   const combinedError = rawError || initialExec.stderr || initialExec.stdout;
   const errorReport: ErrorReport = ingestError(combinedError);
+  taskMemory.addVerifiedFact(taskId, `Crash site: ${errorReport.crashSite.file}:${errorReport.crashSite.line} [${errorReport.errorType}]`);
 
   yield {
     type: "thought",
@@ -80,115 +89,157 @@ export async function* runDebugAgent(options: AgentOptions): AsyncGenerator<Agen
     return;
   }
 
-  // Stage 2: Dynamic Backward Causal RCA
-  yield {
-    type: "thought",
-    content: "[RCA] Stage 2: Tracing dynamic state mutations backwards to isolate Infection Origin from Crash Site...",
-    timestamp: Date.now(),
-  };
+  // Trajectory Multi-Attempt Loop with Supervisor Governance
+  let verifiedPatchResult: PatchResult | null = null;
+  let verifiedLockResult: TripleLockResult | null = null;
 
-  yield {
-    type: "tool_call",
-    tool: "trace_and_analyze",
-    args: { errorId: errorReport.id, crashSite: errorReport.crashSite },
-    timestamp: Date.now(),
-  };
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    yield {
+      type: "thought",
+      content: `[TRAJECTORY] Attempt #${attempt}/${maxAttempts}: Synthesizing diagnostic hypothesis and patch candidate...`,
+      timestamp: Date.now(),
+    };
 
-  const rca: RootCauseAnalysis = await traceAndAnalyze({
-    errorReport,
-    projectPath: resolvedTarget,
-  });
+    // Stage 2: Dynamic Backward Causal RCA
+    yield {
+      type: "tool_call",
+      tool: "trace_and_analyze",
+      args: { errorId: errorReport.id, crashSite: errorReport.crashSite },
+      timestamp: Date.now(),
+    };
 
-  yield {
-    type: "tool_result",
-    tool: "trace_and_analyze",
-    result: rca,
-    timestamp: Date.now(),
-  };
+    const rca: RootCauseAnalysis = await traceAndAnalyze({
+      errorReport,
+      projectPath: resolvedTarget,
+    });
 
-  yield {
-    type: "trace_discovered",
-    rca,
-    timestamp: Date.now(),
-  };
+    yield {
+      type: "tool_result",
+      tool: "trace_and_analyze",
+      result: rca,
+      timestamp: Date.now(),
+    };
 
-  yield {
-    type: "thought",
-    content: `[RCA] 🎯 Infection Origin Isolated: ${rca.infectionOrigin.file}:${rca.infectionOrigin.line} (${rca.infectionOrigin.culpritSymbol}) - ${rca.infectionOrigin.rootExplanation}`,
-    timestamp: Date.now(),
-  };
+    yield {
+      type: "trace_discovered",
+      rca,
+      timestamp: Date.now(),
+    };
 
-  // Stage 3: Surgical Patch Synthesis
-  yield {
-    type: "thought",
-    content: "[PATCH] Stage 3: Synthesizing minimal surgical AST diffs targeting root cause...",
-    timestamp: Date.now(),
-  };
+    yield {
+      type: "thought",
+      content: `[RCA] 🎯 Infection Origin Isolated: ${rca.infectionOrigin.file}:${rca.infectionOrigin.line} (${rca.infectionOrigin.culpritSymbol}) [Oracle: ${rca.oracleState || "INFERRED"}]`,
+      timestamp: Date.now(),
+    };
 
-  yield {
-    type: "tool_call",
-    tool: "auto_patch",
-    args: { errorId: errorReport.id, infectionOrigin: rca.infectionOrigin },
-    timestamp: Date.now(),
-  };
+    // Stage 3: Surgical Patch Synthesis & Blast Radius Analysis
+    yield {
+      type: "tool_call",
+      tool: "auto_patch",
+      args: { errorId: errorReport.id, infectionOrigin: rca.infectionOrigin },
+      timestamp: Date.now(),
+    };
 
-  const patchResult: PatchResult = await autoPatch({
-    rca,
-    projectPath: resolvedTarget,
-  });
+    const patchResult: PatchResult = await autoPatch({
+      rca,
+      projectPath: resolvedTarget,
+      applyImmediately: true,
+    });
 
-  yield {
-    type: "tool_result",
-    tool: "auto_patch",
-    result: patchResult,
-    timestamp: Date.now(),
-  };
+    // Compute Blast Radius
+    if (patchResult.patches.length > 0) {
+      patchResult.blastRadius = blastRadiusAnalyzer.analyzeBlastRadius({
+        projectPath: resolvedTarget,
+        targetFile: patchResult.patches[0].filePath,
+      });
+    }
 
-  yield {
-    type: "patch_generated",
-    patch: patchResult,
-    timestamp: Date.now(),
-  };
+    yield {
+      type: "tool_result",
+      tool: "auto_patch",
+      result: patchResult,
+      timestamp: Date.now(),
+    };
 
-  // Stage 4: Independent Triple-Lock Verification
-  yield {
-    type: "thought",
-    content: `[VERIFY] Stage 4: Executing independent Triple-Lock verification gates across sandbox...`,
-    timestamp: Date.now(),
-  };
+    yield {
+      type: "patch_generated",
+      patch: patchResult,
+      timestamp: Date.now(),
+    };
 
-  yield {
-    type: "tool_call",
-    tool: "verify_fix",
-    args: { patchId: patchResult.id, testCommand },
-    timestamp: Date.now(),
-  };
+    // Stage 4: Independent Triple-Lock Verification
+    yield {
+      type: "tool_call",
+      tool: "verify_fix",
+      args: { patchId: patchResult.id, testCommand },
+      timestamp: Date.now(),
+    };
 
-  const verification: TripleLockResult = await verifyFix({
-    errorId: errorReport.id,
-    projectPath: resolvedTarget,
-    testCommand,
-    patchResult,
-  });
+    const verification: TripleLockResult = await verifyFix({
+      errorId: errorReport.id,
+      projectPath: resolvedTarget,
+      testCommand,
+      patchResult,
+      runMutationCheck: true,
+    });
 
-  yield {
-    type: "tool_result",
-    tool: "verify_fix",
-    result: verification,
-    timestamp: Date.now(),
-  };
+    yield {
+      type: "tool_result",
+      tool: "verify_fix",
+      result: verification,
+      timestamp: Date.now(),
+    };
 
-  yield {
-    type: "verification_complete",
-    verification,
-    timestamp: Date.now(),
-  };
+    yield {
+      type: "verification_complete",
+      verification,
+      timestamp: Date.now(),
+    };
 
-  // Fail-Closed Check: If Triple-Lock failed, abort workflow
-  if (!verification.allPassed) {
+    const patchHash = crypto
+      .createHash("sha256")
+      .update(patchResult.patches.map((p) => p.diffHunk).join(""))
+      .digest("hex");
+
+    taskMemory.recordAttempt(
+      taskId,
+      patchResult.summary,
+      patchHash,
+      verification.allPassed ? "PASS" : "FAIL",
+      verification.diagnostics
+    );
+
+    if (verification.allPassed) {
+      verifiedPatchResult = patchResult;
+      verifiedLockResult = verification;
+      break;
+    }
+
+    // Trajectory Anomaly & Supervisor Evaluation
+    const supervisorDecision = autonomousSupervisor.evaluateTrajectory(taskId);
+    if (supervisorDecision.intervened && supervisorDecision.anomaly) {
+      yield {
+        type: "supervisor_intervention",
+        anomaly: supervisorDecision.anomaly,
+        directive: supervisorDecision.directive || "Trajectory reset ordered by supervisor.",
+        timestamp: Date.now(),
+      };
+
+      taskMemory.recordRejectedHypothesis(
+        taskId,
+        rca.infectionOrigin.rootExplanation,
+        rca.infectionOrigin.file,
+        supervisorDecision.anomaly.details
+      );
+      taskMemory.recordRollback(taskId);
+    }
+  }
+
+  // Fail-Closed Check: If Triple-Lock failed across all attempts, abort workflow
+  if (!verifiedLockResult || !verifiedLockResult.allPassed || !verifiedPatchResult) {
     yield {
       type: "complete",
-      summary: `❌ Verification Gate Failed: Fix did not pass all Triple-Lock checks. Halting without merging.`,
+      summary: `❌ Verification Gate Failed: Fix did not pass all Triple-Lock checks across attempts. Halting without merging.`,
       success: false,
       timestamp: Date.now(),
     };
@@ -202,11 +253,11 @@ export async function* runDebugAgent(options: AgentOptions): AsyncGenerator<Agen
     timestamp: Date.now(),
   };
 
-  const approvalReq = hitlGatekeeper.createApprovalRequest(patchResult);
+  const approvalReq = hitlGatekeeper.createApprovalRequest(verifiedPatchResult);
 
   yield {
     type: "approval_requested",
-    patch: patchResult,
+    patch: verifiedPatchResult,
     nonce: approvalReq.nonce,
     timestamp: Date.now(),
   };
@@ -215,14 +266,14 @@ export async function* runDebugAgent(options: AgentOptions): AsyncGenerator<Agen
     hitlGatekeeper.evaluateDecision(approvalReq.nonce, "approved", {
       feedback: "Auto-approved in demo/eval mode",
       operator: "demo_runner",
-      currentPatch: patchResult,
+      currentPatch: verifiedPatchResult,
     });
   }
 
   yield {
     type: "complete",
-    summary: `🎉 Successfully diagnosed and auto-healed ${errorReport.errorType} across ${patchResult.patches.length} files. Triple-Lock verified (100% test pass).`,
-    success: verification.allPassed,
+    summary: `🎉 Successfully diagnosed and auto-healed ${errorReport.errorType} across ${verifiedPatchResult.patches.length} files. Triple-Lock verified (100% test pass).`,
+    success: verifiedLockResult.allPassed,
     timestamp: Date.now(),
   };
 }

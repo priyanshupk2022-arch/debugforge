@@ -17,15 +17,40 @@ export function ingestError(rawLog: string): ErrorReport {
 
   // Determine error category based on patterns
   const lowerLog = rawLog.toLowerCase();
-  if (lowerLog.includes("cannot read property") || lowerLog.includes("cannot read properties of undefined") || lowerLog.includes("is undefined") || lowerLog.includes("null pointer")) {
+  if (
+    lowerLog.includes("cannot read property") ||
+    lowerLog.includes("cannot read properties of undefined") ||
+    lowerLog.includes("is undefined") ||
+    lowerLog.includes("null pointer")
+  ) {
     category = "null_dereference";
-  } else if (lowerLog.includes("race condition") || lowerLog.includes("concurrency") || lowerLog.includes("lock") || lowerLog.includes("corrupted state")) {
-    category = "race_condition";
-  } else if (lowerLog.includes("memory leak") || lowerLog.includes("heap out of memory") || lowerLog.includes("maxlisteners exceeded")) {
-    category = "memory_leak";
-  } else if (lowerLog.includes("unhandledpromiserejection") || lowerLog.includes("unhandled rejection")) {
+  } else if (
+    lowerLog.includes("unhandledpromiserejection") ||
+    lowerLog.includes("unhandled rejection") ||
+    lowerLog.includes("unhandled promise") ||
+    lowerLog.includes("missing catch block")
+  ) {
     category = "unhandled_promise";
-  } else if (lowerLog.includes("timed out") || lowerLog.includes("timeout of") || lowerLog.includes("deadlock")) {
+  } else if (
+    lowerLog.includes("memory leak") ||
+    lowerLog.includes("heap out of memory") ||
+    lowerLog.includes("maxlisteners exceeded") ||
+    lowerLog.includes("heapgrowthexceeded")
+  ) {
+    category = "memory_leak";
+  } else if (
+    lowerLog.includes("race condition") ||
+    lowerLog.includes("concurrency") ||
+    /\b(race|mutex|atomic|unsynchronized)\b/.test(lowerLog) ||
+    lowerLog.includes("balance went negative") ||
+    lowerLog.includes("corrupted state")
+  ) {
+    category = "race_condition";
+  } else if (
+    lowerLog.includes("timed out") ||
+    lowerLog.includes("timeout of") ||
+    lowerLog.includes("deadlock")
+  ) {
     category = "timeout_deadlock";
   }
 

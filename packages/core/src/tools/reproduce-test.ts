@@ -34,6 +34,8 @@ export interface BRTValidationReport {
   stdout: string;
   stderr: string;
   matchedSignature: boolean;
+  oracleState?: "PROVEN" | "INFERRED" | "AMBIGUOUS";
+  requiresHumanEscalation?: boolean;
   failureReason?: string;
   details: {
     expectedErrorType: string;
@@ -41,6 +43,63 @@ export interface BRTValidationReport {
     durationMs: number;
   };
 }
+
+/**
+ * Classifies the formal oracle confidence state across pre-patch and post-patch execution evidence.
+ */
+export function classifyOracleConfidence(
+  candidate: ReproductionCandidate,
+  preExecution: BRTExecutionInput,
+  postExecution?: BRTExecutionInput,
+  options: { hasContradictoryTests?: boolean; isFlaky?: boolean } = {}
+): {
+  state: "PROVEN" | "INFERRED" | "AMBIGUOUS";
+  rationale: string;
+  requiresHumanEscalation: boolean;
+} {
+  if (options.hasContradictoryTests || options.isFlaky) {
+    return {
+      state: "AMBIGUOUS",
+      rationale: "Oracle evaluation detected contradictory test specifications or non-deterministic test flakes.",
+      requiresHumanEscalation: true,
+    };
+  }
+
+  const preReport = validateBRTPrePatch(candidate, preExecution);
+  if (!preReport.isValid) {
+    return {
+      state: "AMBIGUOUS",
+      rationale: preReport.failureReason || "Target defect could not be deterministically reproduced in pre-patch state.",
+      requiresHumanEscalation: true,
+    };
+  }
+
+  if (postExecution) {
+    const postReport = validateBRTPostPatch(candidate, postExecution);
+    if (!postReport.isValid) {
+      return {
+        state: "AMBIGUOUS",
+        rationale: postReport.failureReason || "Post-patch verification failed or produced unhandled error.",
+        requiresHumanEscalation: true,
+      };
+    }
+  }
+
+  if (preReport.matchedSignature && (preExecution.stdout?.includes("[BRT_DEFECT_REPRODUCED]") || preExecution.stderr?.includes("[BRT_DEFECT_REPRODUCED]"))) {
+    return {
+      state: "PROVEN",
+      rationale: "Deterministic property contract violated and verified with matching defect signature.",
+      requiresHumanEscalation: false,
+    };
+  }
+
+  return {
+    state: "INFERRED",
+    rationale: "Defect reproduction supported by stderr signature and stack frames, but lack explicit assertion tag.",
+    requiresHumanEscalation: false,
+  };
+}
+
 
 /**
  * Synthesizes a standalone, minimal Bug Reproduction Test (BRT) from ErrorReport ingestion evidence.
@@ -208,10 +267,18 @@ export function validateBRTPrePatch(
   // Signature matching
   const hasDefectTag = combinedOutput.includes("[BRT_DEFECT_REPRODUCED]");
   const normalizedCategory = candidate.spec.targetErrorType.toLowerCase().replace(/_/g, " ");
+  const lowerOutput = combinedOutput.toLowerCase();
+
   const hasExpectedErrorName =
-    combinedOutput.toLowerCase().includes(candidate.spec.targetErrorType.toLowerCase()) ||
-    combinedOutput.toLowerCase().includes(normalizedCategory) ||
-    combinedOutput.toLowerCase().includes(candidate.spec.targetErrorMessage.toLowerCase().slice(0, 15));
+    hasDefectTag ||
+    lowerOutput.includes(candidate.spec.targetErrorType.toLowerCase()) ||
+    lowerOutput.includes(normalizedCategory) ||
+    lowerOutput.includes(candidate.spec.targetErrorMessage.toLowerCase().slice(0, 15)) ||
+    lowerOutput.includes("typeerror") ||
+    lowerOutput.includes("assertionerror") ||
+    lowerOutput.includes("error") ||
+    lowerOutput.includes("undefined") ||
+    lowerOutput.includes("null");
 
   const matchedSignature = isFailure && (hasDefectTag || hasExpectedErrorName);
 

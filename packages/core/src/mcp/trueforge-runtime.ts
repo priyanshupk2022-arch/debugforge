@@ -70,8 +70,12 @@ export class TrueForgeHarnessBridge {
 
     if (this.client) {
       try {
-        // 1. Verify server capabilities
-        const capabilities = await this.client.server.getCapabilities();
+        // 1. Verify server capabilities with 2000ms timeout
+        const capabilitiesPromise = this.client.server.getCapabilities();
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error("TrueForge health check timed out")), 2000)
+        );
+        const capabilities = (await Promise.race([capabilitiesPromise, timeoutPromise])) as unknown;
 
         // 2. Ensure model provider is registered in TrueForge
         const providerConfig = resolveModelProviderConfig({
