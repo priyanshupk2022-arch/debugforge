@@ -1,0 +1,46 @@
+# 📑 Multi-Report Comparative Analysis (`research/report-comparison.md`)
+
+> **Executive Objective**: Synthesize, contrast, and categorize all architectural recommendations, empirical assertions, and failure classifications across the three independent deep-research reports on DebugForge.
+
+---
+
+## 1. High-Level Summary of Reviewed Reports
+
+| Report Identifier | Core Angle & Theoretical Framing | Distinguishing Contributions | Primary Risk Focus |
+| :--- | :--- | :--- | :--- |
+| **Report 1**<br>*(Systemic Failure Modes & Structural Defenses)* | **Harness Topology & Hardware/Runtime Boundary**: Analyzes TrueForge + Daytona + Lauterbach TRACE32 / PYRCL, mapping 6 architectural layers and STRIDE threats. | Detailed TRACE32 flash wear-out loops, hardware socket security, backward causal slicing, and 20 specific hardware/runtime failure chains. | Hardware wear-out, MCP parameter exfiltration, command injection, and reward hacking. |
+| **Report 2**<br>*(Failure-Surface & High-Assurance Verification)* | **Formal Verification & Statistical Oracles**: Focuses on 8 trust boundaries (B1–B8), epistemic uncertainty ($D_{\text{KL}}$), AutoCodeSherpa RIP, Daikon invariant mining, and TDAD impact graphs. | Mathematical formulations ($D_{\text{KL}}$ divergence, progress score $\mathcal{P}$, statistical flakiness $C \ge 0.999$, Metallaxis/MUSE mutation kill $\ge 85\%$), and 12x12 failure amplification matrix. | Verification collusion, lucky passes (10.7% on SWE-bench Verified), silent semantic regressions, and overfitted invariants. |
+| **Report 3**<br>*(Distributed Execution Loop & Threat Modeling)* | **Distributed Agent Lifecycle & State Topology**: Explores TrueForge control plane, MCP integration bus, Daytona OCI compute plane, and vendor-neutral intelligence routing. | N-Version multi-provider verification, state desynchronization heartbeats, metamorphic test oracles, and economic stopping budgets per debugging phase. | Token burn, patch oscillation cycles, state desync across asynchronous workers, and benchmark contamination. |
+
+---
+
+## 2. Cross-Report Concept Extraction & Comparison Matrix
+
+| # | Architectural Domain / Concept | Report 1 Proposal | Report 2 Proposal | Report 3 Proposal | Consensus Level | Key Discrepancies & Contradictions |
+| :-: | :--- | :--- | :--- | :--- | :--- | :--- |
+| **1** | **Trust Boundaries & Taxonomy** | 6 operational layers: TrueForge, MCP, Model Layer, Daytona Sandbox, TRACE32/PYRCL, Triple-Lock. | 8 formal trust boundaries (B1: Model to B8: Approval). | 4 physical planes: Interface/Control, MCP Integration, Daytona Execution, Intelligence. | **STRONG ALIGNMENT** | Report 1 includes physical hardware (TRACE32) which is out-of-scope for standard web/cloud repos. Report 2 provides the most rigorous boundary taxonomy. |
+| **2** | **Root Cause Analysis (RCA)** | Backward causal slicing + 3 competing hypotheses + active falsification probing. | Dynamic backward slicing + AutoSD (Automated Scientific Debugging) state-mutation tests. | AgentTrace causal DAG reconstruction backward from error manifestation. | **STRONG ALIGNMENT** | All three agree that crash-site bias is fatal and require backward causal dependency tracing before patch synthesis. |
+| **3** | **Bug Reproduction Tests (BRT)** | Stability index $S_{\text{BRT}} = 1.0$ across $N \ge 20$ runs under jitter; AST minimization. | $S_{\text{BRT}} = 1.00$ ($10/10$), $G_{\text{BRT}} \ge 0.90$, $M_{\text{BRT}} \le 25$ AST nodes, $K_{\text{BRT}} \ge 0.80$. | $N=10$ pristine Daytona runs + non-essential input mutation checks. | **MODERATE VARIANCE IN THRESHOLDS** | Report 1 specifies $N=20$; Report 2 specifies $N=10$ + property fuzzing + mutation score; Report 3 specifies $N=10$ across sandboxes. |
+| **4** | **Verification Collusion** | Cross-family model routing + deterministic mutation testing + physical trace witnesses. | Asymmetric Multi-Engine: Lock 1 (Daikon), Lock 2 (MUSE/Metallaxis $\ge 85\%$), Lock 3 (Disjoint model). | N-Version verification: Semantic Verifier (LLM A), Execution Verifier (LLM B), Security Verifier (LLM C). | **UNANIMOUS CONSENSUS ON CROSS-FAMILY** | All agree identical model families collude on shared hallucinations. Report 2 adds formal mutation testing; Report 3 proposes 3 specialized verification roles. |
+| **5** | **Test Oracle Discovery** | 3 confidence tiers: Deterministic (Crash), Inferred (Property/Fuzz), Uncertain (Domain/HITL). | 4 techniques: Dynamic Daikon, AutoCodeSherpa RIP, Metamorphic relations, Differential execution. | 3 tiers: Provable (Types/SMT), Inferred (Logs/Stats), Unverifiable (Business logic). | **STRONG CONCEPTUAL AGREEMENT** | All agree that in test-deprived repos, the agent must not invent arbitrary assertions, but mine invariants or halt on ambiguity. |
+| **6** | **Specification Ambiguity Policy** | Hard Refusal Protocol: $P(\text{Intent}_A) \approx P(\text{Intent}_B) \implies \text{HALT} \to \text{HITL}$. | Epistemic divergence: $D_{\text{KL}}(\mathcal{H}_A \parallel \mathcal{H}_B) > \epsilon \implies \text{AmbiguousSpecificationError}$. | STOP Paradigm: Explicit request-evidence state; halt sandbox execution. | **MATHEMATICAL vs HEURISTIC** | Report 2 provides formal $D_{\text{KL}}$ mathematical formulation; Reports 1 and 3 provide operational state machine triggers. |
+| **7** | **Supervisor & Loop Governance** | Entropy reduction progress score + Merkle checkpoint graph. | Real progress $\mathcal{P} = \Delta \text{Pass} - \Delta \text{Fail} + \Delta \text{Invariants}$; Levenshtein cycle detection; Phase budgets. | Semantic checkpoint graph + similarity detector ($>95\%$ match $\implies$ block); Action budgets. | **STRONG ALIGNMENT** | All require non-linear checkpoint graphs and progress metrics to stop patch oscillation ($A \to B \to A$). |
+| **8** | **Concurrency & Race Debugging** | Binomial confidence $P(\text{Absence}) = 1 - (1-p)^K \ge 0.999$. | Perturbation matrix ($N=50$ delay runs) + ThreadSanitizer + W3C trace context. | $N=10$ consecutive passes under schedule perturbation + distributed tracing. | **STRONG ALIGNMENT** | All reject single-run passes for concurrent bugs; require randomized schedule perturbation and repeated executions. |
+| **9** | **Memory & State Architecture** | 6 guarantees: Task, Tenant, Source Provenance, Temporal Validity (7-day TTL), Falsification Pruning, Erasure. | 7 guarantees: Task, Tenant, Temporal TTL, Source Provenance, Confidence Scoring, Cache Invalidation, Zeroization. | 3 tiers: Ephemeral Task memory, Semantic compaction, Long-term SMT-verified store. | **STRONG ALIGNMENT** | Universal agreement that unverified hypotheses must not leak into persistent memory or cross-task storage. |
+| **10** | **Sandbox & Kernel Security** | Dual gVisor + Landlock microVMs; Seccomp-BPF; air-gapped test execution. | Sandlock (Landlock LSM + seccomp-bpf + RLIMITs); Pydantic gateway; air-gapped test phase. | Ephemeral OCI microVMs; seccomp profiles; network egress filtering. | **STRONG ALIGNMENT** | All mandate network egress blocking during test execution and kernel syscall restriction. |
+| **11** | **MCP Security & Gateways** | AttestMCP with cryptographic message signing; secret scrubbing proxy; drop non-standard parameters. | Pydantic strict schema validation; direct `execve` (no subshell); drop non-standard fields. | JSON-RPC output filtering; strip control tokens; data-only delimiters. | **STRONG ALIGNMENT** | All mandate blocking shell metacharacters (`;`, `|`, `&`, `$()`) and sanitizing tool schemas against prompt injection. |
+| **12** | **Economic Cost Bounds** | Action budgets; token caps; circuit breakers. | Phase budgets: Localization $\$0.30$, Synthesis $\$1.00$, Verification $\$0.70$, Total $\$2.00$. | Phase-level and model-tiered routing caps. | **REPORT 2 GIVES EXACT NUMERICAL BUDGETS** | Report 2 defines explicit dollar/token caps per debugging sub-phase. |
+
+---
+
+## 3. Identification of Contradictions & Over-Engineering Risks
+
+1. **Hardware / TRACE32 Scope (Report 1)**:
+   - *Report 1 Assertion*: TRACE32 PYRCL bridge over TCP port 20000 with flash wear-out mitigation.
+   - *Critique*: DebugForge's primary mission in standard cloud/monorepo CI is software repositories (Node/TS, Python, etc.) running inside Daytona sandboxes. Embedded hardware emulation is highly specialized and should not be coupled into core runtime contracts.
+2. **Heavyweight Dynamic Bytecode Slicers (Reports 1 & 2)**:
+   - *Report 1 & 2 Assertion*: Full bytecode-level dynamic backward program slicing for every crash.
+   - *Critique*: Dynamic bytecode instrumentation (e.g., full Java JVMTI or Python `sys.settrace` instruction logging) incurs a $50\times - 300\times$ execution slowdown. A hybrid static AST call-graph + selective stack trace frame walk is far more scalable and token-efficient.
+3. **Heavyweight Mutation Testing Overkill (Report 2)**:
+   - *Report 2 Assertion*: Mandatory full mutation test suites (MUSE/Metallaxis) requiring $\ge 85\%$ kill scores on all candidate patches.
+   - *Critique*: Generating hundreds of first-order mutants per candidate patch balloons token/compute costs by an order of magnitude. Targeted mutation testing should be confined strictly to the modified lines rather than the entire package.
