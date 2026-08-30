@@ -113,6 +113,52 @@ export function createDebugForgeMcpServer(): McpServer {
   return server;
 }
 
+export async function executeDirectMcpTool(toolName: string, args: Record<string, any>): Promise<any> {
+  switch (toolName) {
+    case "debugforge_ingest_error": {
+      const raw = args.rawError || args.rawLog || args.error || "";
+      return ingestError(raw);
+    }
+    case "debugforge_reproduce_in_sandbox": {
+      return await reproduceInSandbox({
+        projectPath: args.projectPath || process.cwd(),
+        testCommand: args.testCommand,
+        timeoutMs: args.timeoutMs,
+      });
+    }
+    case "debugforge_trace_and_analyze": {
+      const report = args.errorReport || {
+        id: args.errorId || "err_mcp",
+        errorType: "RuntimeError",
+        errorMessage: args.crashSite?.symptomExplanation || "Runtime crash",
+        crashSite: args.crashSite || { file: "src/index.js", line: 1 },
+        stackFrames: [],
+        category: "logic_flaw",
+        rawLog: args.crashSite?.symptomExplanation || "",
+        timestamp: Date.now(),
+      };
+      return await traceAndAnalyze({ errorReport: report, projectPath: args.projectPath || process.cwd() });
+    }
+    case "debugforge_auto_patch": {
+      return await autoPatch({
+        rca: args.rca,
+        projectPath: args.projectPath || process.cwd(),
+        applyImmediately: args.applyImmediately ?? true,
+      });
+    }
+    case "debugforge_verify_fix": {
+      return await verifyFix({
+        projectPath: args.projectPath || process.cwd(),
+        errorId: args.errorId || "err_verify",
+        testCommand: args.testCommand,
+        stressCommand: args.stressCommand,
+      });
+    }
+    default:
+      throw new Error(`Unknown DebugForge tool: ${toolName}`);
+  }
+}
+
 export function startMCPServer(port = Number(process.env.DEBUGFORGE_MCP_PORT) || 3000): Promise<{
   server: http.Server;
   url: string;
@@ -147,7 +193,8 @@ export function startMCPServer(port = Number(process.env.DEBUGFORGE_MCP_PORT) ||
       return;
     }
 
-    if (url.pathname === "/sse" || url.pathname === "/mcp/sse" || url.pathname === "/mcp") {
+    // 1. SSE Stream Connect (GET)
+    if (req.method === "GET" && (url.pathname === "/sse" || url.pathname === "/mcp/sse" || url.pathname === "/mcp")) {
       const transport = new SSEServerTransport("/messages", res);
       const sessionId = transport.sessionId;
       transports.set(sessionId, transport);
@@ -160,17 +207,84 @@ export function startMCPServer(port = Number(process.env.DEBUGFORGE_MCP_PORT) ||
       return;
     }
 
-    if (url.pathname === "/messages" && req.method === "POST") {
-      const sessionId = url.searchParams.get("sessionId");
-      const transport = sessionId ? transports.get(sessionId) : Array.from(transports.values())[0];
+    // 2. SSE Message Handler (POST to /messages or /sse)
+    if (req.method === "POST") {
+      let bodyStr = "";
+      req.on("data", (chunk) => (bodyStr += chunk));
+      req.on("end", async () => {
+        try {
+          const jsonBody = bodyStr ? JSON.parse(bodyStr) : {};
 
-      if (!transport) {
-        res.writeHead(404, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "Session not found" }));
-        return;
-      }
+          // Check if this is a standard JSON-RPC request (Streamable HTTP MCP)
+          if (jsonBody.jsonrpc === "2.0" || jsonBody.method) {
+            const { id, method, params } = jsonBody;
 
-      await transport.handlePostMessage(req, res);
+            if (method === "initialize") {
+              res.writeHead(200, { "Content-Type": "application/json" });
+              res.end(
+                JSON.stringify({
+                  jsonrpc: "2.0",
+                  id,
+                  result: {
+                    protocolVersion: "2024-11-05",
+                    capabilities: { tools: {} },
+                    serverInfo: { name: "debugforge", version: "1.0.0" },
+                  },
+                })
+              );
+              return;
+            }
+
+            if (method === "tools/list") {
+              const tools = trueforgeMCPServer.listTools().map((t) => ({
+                name: t.name,
+                description: t.description,
+                inputSchema: t.parameters,
+              }));
+              res.writeHead(200, { "Content-Type": "application/json" });
+              res.end(JSON.stringify({ jsonrpc: "2.0", id, result: { tools } }));
+              return;
+            }
+
+            if (method === "tools/call") {
+              const toolName = params?.name;
+              const args = params?.arguments || {};
+              const result = await executeDirectMcpTool(toolName, args);
+              res.writeHead(200, { "Content-Type": "application/json" });
+              res.end(
+                JSON.stringify({
+                  jsonrpc: "2.0",
+                  id,
+                  result: {
+                    content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+                  },
+                })
+              );
+              return;
+            }
+
+            if (method === "ping") {
+              res.writeHead(200, { "Content-Type": "application/json" });
+              res.end(JSON.stringify({ jsonrpc: "2.0", id, result: {} }));
+              return;
+            }
+          }
+
+          // Fallback to SSEServerTransport
+          const sessionId = url.searchParams.get("sessionId");
+          const transport = sessionId ? transports.get(sessionId) : Array.from(transports.values())[0];
+          if (transport) {
+            await transport.handlePostMessage(req, res, jsonBody);
+            return;
+          }
+
+          res.writeHead(200, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ status: "received" }));
+        } catch (err: any) {
+          res.writeHead(500, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+      });
       return;
     }
 
