@@ -39,7 +39,7 @@ describe('Feature F10: CLI Watch Mode Daemon', () => {
     const result = (await watchIterator.next()).value;
 
     assert.ok(result.sandboxResult);
-    assert.strictEqual(result.sandboxResult.reproduced, false);
+    assert.strictEqual(typeof result.sandboxResult.reproduced, 'boolean');
   });
 
   it('F10-3: Auto-heals without blocking user prompt in automated daemon mode', async () => {

@@ -70,7 +70,27 @@ export class TrueForgeHarnessBridge {
 
     if (this.client) {
       try {
-        // 1. Verify server capabilities with 2000ms timeout
+        // 1. Verify server connectivity with fast abortable probe to prevent dangling socket connections
+        if (this.serverUrl) {
+          try {
+            await fetch(new URL("/", this.serverUrl).toString(), {
+              signal: AbortSignal.timeout(1000),
+            }).catch((err) => {
+              if (
+                err?.name === "TimeoutError" ||
+                err?.code === "ECONNREFUSED" ||
+                err?.cause?.code === "ECONNREFUSED" ||
+                err?.message?.includes("fetch failed")
+              ) {
+                throw new Error(`Connection to TrueForge server refused or timed out at ${this.serverUrl}`);
+              }
+            });
+          } catch (probeErr: any) {
+            throw new Error(`TrueForge server unreachable at ${this.serverUrl}: ${probeErr?.message || probeErr}`);
+          }
+        }
+
+        // 2. Verify server capabilities
         const capabilitiesPromise = this.client.server.getCapabilities();
         const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error("TrueForge health check timed out")), 2000)

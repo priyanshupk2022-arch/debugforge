@@ -1,7 +1,7 @@
 # DebugForge Native Windows PowerShell Installer
 Write-Host "🔥 Installing DebugForge: Autonomous AI Debugging Agent Harness..." -ForegroundColor Cyan
 
-if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
+if (-not (Get-Command "node" -ErrorAction SilentlyContinue)) {
     Write-Error "❌ Node.js 18+ is required. Please install Node.js first from https://nodejs.org/"
     exit 1
 }

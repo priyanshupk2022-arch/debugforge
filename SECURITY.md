@@ -49,3 +49,30 @@ DebugForge is designed with a **Fail-Closed** security architecture to safely an
 - **Zero Production Dummy Keys**: No fake keys (e.g. `sk-dummy-key`) are permitted in production or live execution paths.
 - **Fail-Closed Validation**: If a required provider key (`ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `OPENAI_API_KEY`, `DEEPSEEK_API_KEY`) is missing when running against a live server, execution blocks immediately (`[Model Provider Blocker]`).
 - **No Disk Leaks**: API tokens and cryptographic secrets are never written to logs, artifacts, or disk.
+
+---
+
+## 6. Supported Versions
+
+| Version | Supported          |
+| :---    | :---               |
+| 1.0.x   | :white_check_mark: |
+| < 1.0   | :x:                |
+
+---
+
+## 7. Reporting a Vulnerability
+
+We take the security of DebugForge and its automated execution environment seriously. If you believe you have found a security vulnerability in DebugForge, please report it to us responsibly:
+
+1. **Do NOT open a public GitHub issue** for undisclosed security vulnerabilities.
+2. Please report security issues via **GitHub Security Advisories** (preferred) or email the core maintainers at `security@debugforge.dev` with:
+   - Type of issue (e.g. sandbox breakout, command injection, path traversal, replay attack)
+   - Step-by-step instructions to reproduce the issue
+   - Proof of Concept (PoC) code or command snippet if available
+   - Impact assessment
+3. **Response Timeline**:
+   - Initial acknowledgement: within **24 hours**
+   - Severity assessment and triage: within **48 hours**
+   - Patch release and disclosure coordination: within **7 business days** for critical issues.
+

@@ -30,7 +30,7 @@ class MockDebugForgeEngine {
   /**
    * Tool 1: ingest_error
    */
-  async ingest_error(rawLog, errorType = 'RuntimeError', failingTest) {
+  async ingest_error(rawLog, errorType = 'Error', failingTest) {
     this.status = 'INGESTING';
     const lines = (rawLog || '').split('\n');
     const stackFrames = [];
@@ -77,7 +77,7 @@ class MockDebugForgeEngine {
       message: lines[0] || 'Unknown error occurred',
       rawLog: rawLog || '',
       stackFrames,
-      failingTest: failingTest || (rawLog.includes('fail') ? {
+      failingTest: failingTest || ((rawLog || '').includes('fail') ? {
         suiteName: 'TestSuite',
         testName: 'FailingTestCase',
         errorMessage: lines[0] || 'Assertion failed',
@@ -268,7 +268,7 @@ class MockDebugForgeEngine {
     };
 
     const result = {
-      patchId: `patch_${Date.now()}`,
+      patchId: `patch_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
       patches,
       unifiedDiff: diff,
       tripleLock,
@@ -344,7 +344,7 @@ class MockDebugForgeEngine {
     this._recordStep('SYNTHESIS', `HITL Gate resolved: ${hitl.decision}`, 10, { toolName: 'hitl_approval', input: { decision: hitl.decision } }, { success: true, output: hitl });
 
     return {
-      sessionId: `sess_${Date.now()}`,
+      sessionId: `sess_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
       status: this.status,
       parsedError: parsed,
       sandboxResult: sandboxRes,

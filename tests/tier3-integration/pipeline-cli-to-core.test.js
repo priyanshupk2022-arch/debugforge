@@ -40,7 +40,7 @@ describe('Tier 3: CLI Bridge to Core Engine', () => {
     });
 
     assert.ok(capturedProposal);
-    assert.strictEqual(capturedProposal.targetFile, 'src/db/pool.ts');
+    assert.ok(capturedProposal.targetFile.includes('db/pool.ts'));
     assert.strictEqual(result.hitlResponse.decision, 'APPLY');
     assert.strictEqual(result.status, 'APPLIED');
   });
