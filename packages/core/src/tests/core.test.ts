@@ -150,6 +150,82 @@ describe("DebugForge Core Engine Suite", () => {
     assert.strictEqual(zaiConfig.provider, "zai");
     const zaiManifest = buildTrueForgeProviderManifest(zaiConfig);
     assert.strictEqual(zaiManifest.manifest.type, "zai");
+
+    // Case & whitespace trimming tests
+    assert.strictEqual(resolveModelProviderConfig({ provider: " GOOGLE " }).provider, "google-gemini");
+    assert.strictEqual(resolveModelProviderConfig({ provider: "Claude" }).provider, "anthropic");
+    assert.strictEqual(resolveModelProviderConfig({ provider: "GEMINI" }).provider, "google-gemini");
+    assert.strictEqual(resolveModelProviderConfig({ provider: "qwen" }).provider, "alibaba");
+    assert.strictEqual(resolveModelProviderConfig({ provider: "ollama" }).provider, "custom");
+    assert.strictEqual(resolveModelProviderConfig({ provider: "local" }).provider, "custom");
+
+    // Default behavior when omitted
+    assert.strictEqual(resolveModelProviderConfig({}).provider, "openai");
+    assert.strictEqual(resolveModelProviderConfig({ provider: undefined }).provider, "openai");
+  });
+
+  it("should validate supported provider types accurately via isSupportedProviderType", async () => {
+    const { isSupportedProviderType } = await import("../agent/provider.js");
+    // Valid providers and aliases
+    assert.strictEqual(isSupportedProviderType("openai"), true);
+    assert.strictEqual(isSupportedProviderType("gpt"), true);
+    assert.strictEqual(isSupportedProviderType("google"), true);
+    assert.strictEqual(isSupportedProviderType("gemini"), true);
+    assert.strictEqual(isSupportedProviderType("google-gemini"), true);
+    assert.strictEqual(isSupportedProviderType("anthropic"), true);
+    assert.strictEqual(isSupportedProviderType("claude"), true);
+    assert.strictEqual(isSupportedProviderType("together"), true);
+    assert.strictEqual(isSupportedProviderType("together-ai"), true);
+    assert.strictEqual(isSupportedProviderType("fireworks"), true);
+    assert.strictEqual(isSupportedProviderType("alibaba"), true);
+    assert.strictEqual(isSupportedProviderType("qwen"), true);
+    assert.strictEqual(isSupportedProviderType("moonshot"), true);
+    assert.strictEqual(isSupportedProviderType("zai"), true);
+    assert.strictEqual(isSupportedProviderType("custom"), true);
+    assert.strictEqual(isSupportedProviderType("deepseek"), true);
+    assert.strictEqual(isSupportedProviderType("ollama"), true);
+    assert.strictEqual(isSupportedProviderType("local"), true);
+
+    // Invalid providers MUST return false
+    assert.strictEqual(isSupportedProviderType("foobar"), false);
+    assert.strictEqual(isSupportedProviderType("unknown"), false);
+    assert.strictEqual(isSupportedProviderType("random-vendor"), false);
+    assert.strictEqual(isSupportedProviderType("openrouter-invalid-format"), false);
+    assert.strictEqual(isSupportedProviderType("xai-invalid-format"), false);
+    assert.strictEqual(isSupportedProviderType("totally-invalid-provider"), false);
+    assert.strictEqual(isSupportedProviderType(""), false);
+  });
+
+  it("REGRESSION: should fail closed and THROW on invalid provider names rather than silently defaulting to openai", async () => {
+    const { normalizeProviderName } = await import("../agent/provider.js");
+
+    const invalidInputs = [
+      "totally-invalid-provider",
+      "foobar",
+      "unknown",
+      "random-vendor",
+      "openrouter-invalid-format",
+      "xai-invalid-format",
+      " invalid-vendor ",
+    ];
+
+    for (const invalid of invalidInputs) {
+      assert.throws(
+        () => {
+          normalizeProviderName(invalid);
+        },
+        /\[TrueForge Provider Blocker\] Unsupported provider type/,
+        `normalizeProviderName("${invalid}") must throw [TrueForge Provider Blocker]`
+      );
+
+      assert.throws(
+        () => {
+          resolveModelProviderConfig({ provider: invalid });
+        },
+        /\[TrueForge Provider Blocker\] Unsupported provider type/,
+        `resolveModelProviderConfig({ provider: "${invalid}" }) must throw rather than produce openai`
+      );
+    }
   });
 
   it("should route models adaptively across providers based on task complexity", () => {

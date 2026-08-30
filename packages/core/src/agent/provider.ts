@@ -41,9 +41,20 @@ export interface ResolveProviderOptions {
 
 /**
  * Normalizes user-supplied provider names into official TrueForge SDK provider types.
+ * 
+ * Rules:
+ *  - When rawProvider is omitted (undefined, null, or empty/whitespace string): returns "openai" (default).
+ *  - When rawProvider is provided: trims whitespace, normalizes case, and matches against supported aliases.
+ *  - When rawProvider is unrecognized: THROWS [TrueForge Provider Blocker] error (never silently defaults to openai).
  */
 export function normalizeProviderName(rawProvider?: string): SupportedModelProvider {
-  const p = (rawProvider || "").trim().toLowerCase();
+  if (rawProvider === undefined || rawProvider === null || rawProvider.trim() === "") {
+    return "openai";
+  }
+
+  const p = rawProvider.trim().toLowerCase();
+
+  if (p === "openai" || p === "gpt") return "openai";
   if (p === "anthropic" || p === "claude") return "anthropic";
   if (p === "google" || p === "gemini" || p === "google-gemini" || p === "google_gemini") return "google-gemini";
   if (p === "together" || p === "together-ai" || p === "together_ai") return "together";
@@ -52,15 +63,26 @@ export function normalizeProviderName(rawProvider?: string): SupportedModelProvi
   if (p === "moonshot") return "moonshot";
   if (p === "zai") return "zai";
   if (p === "custom" || p === "deepseek" || p === "ollama" || p === "local") return "custom";
-  return "openai";
+
+  throw new Error(
+    `[TrueForge Provider Blocker] Unsupported provider type "${rawProvider.trim()}". Supported types: ${VALID_TRUEFORGE_PROVIDER_TYPES.join(
+      ", "
+    )}`
+  );
 }
 
 /**
  * Validates whether a given provider string is supported by the TrueForge runtime.
+ * Returns false for unknown or invalid providers without throwing.
  */
-export function isSupportedProviderType(provider: string): provider is SupportedModelProvider {
-  const normalized = normalizeProviderName(provider);
-  return VALID_TRUEFORGE_PROVIDER_TYPES.includes(normalized);
+export function isSupportedProviderType(provider?: string): provider is SupportedModelProvider {
+  if (!provider || provider.trim() === "") return false;
+  try {
+    const normalized = normalizeProviderName(provider);
+    return VALID_TRUEFORGE_PROVIDER_TYPES.includes(normalized);
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -119,16 +141,24 @@ export function getDefaultFastModelForProvider(provider: SupportedModelProvider)
 
 /**
  * Resolves the active model provider configuration from explicit options or environment variables.
+ * 
+ * Rules:
+ *  - If an explicit or env provider is given, it MUST be valid or it will throw [TrueForge Provider Blocker].
+ *  - If no provider is given in options or env, defaults safely to "openai".
  */
 export function resolveModelProviderConfig(options: ResolveProviderOptions = {}): ResolvedModelConfig {
-  const rawProvider =
-    options.provider ||
-    process.env.DEBUGFORGE_MODEL_PROVIDER ||
-    process.env.MODEL_PROVIDER ||
-    process.env.LLM_PROVIDER ||
-    "openai";
+  let rawProvider = options.provider;
 
+  if (rawProvider === undefined || rawProvider === null || rawProvider.trim() === "") {
+    rawProvider =
+      process.env.DEBUGFORGE_MODEL_PROVIDER ||
+      process.env.MODEL_PROVIDER ||
+      process.env.LLM_PROVIDER;
+  }
+
+  // Normalization will throw [TrueForge Provider Blocker] if rawProvider is explicitly invalid
   const normalizedProvider = normalizeProviderName(rawProvider);
+  const displayProvider = rawProvider && rawProvider.trim() !== "" ? rawProvider.trim() : "openai";
 
   let rawModel =
     options.model ||
@@ -197,7 +227,7 @@ export function resolveModelProviderConfig(options: ResolveProviderOptions = {})
 
   return {
     provider: normalizedProvider,
-    rawProviderName: rawProvider,
+    rawProviderName: displayProvider,
     modelId,
     fullModelName: `${normalizedProvider}/${modelId}`,
     apiKey,

@@ -52,6 +52,11 @@ export DEBUGFORGE_MODEL=deepseek-chat
 export DEEPSEEK_API_KEY="sk-..."
 ```
 
+### Provider Normalization & Strict Validation Rules
+- **Omitted Provider**: Defaults cleanly to `openai`.
+- **Valid Aliases**: Case-insensitive and trimmed (e.g. `"claude"` ➔ `anthropic`, `"gemini"` ➔ `google-gemini`, `"qwen"` ➔ `alibaba`, `"deepseek"` ➔ `custom`).
+- **Invalid Providers Fail Closed**: Explicitly supplying an unrecognized provider (e.g. `foobar`, `random-vendor`) throws `[TrueForge Provider Blocker]` immediately. Unsupported providers are **never** silently converted to OpenAI.
+
 ---
 
 ## 3. Demo Scenarios
