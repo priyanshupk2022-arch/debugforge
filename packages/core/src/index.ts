@@ -1,6 +1,7 @@
 export * from "./types.js";
 export * from "./tools/ingest-error.js";
 export * from "./tools/reproduce.js";
+export * from "./tools/reproduce-test.js";
 export * from "./tools/trace-analyze.js";
 export * from "./tools/auto-patch.js";
 export * from "./tools/verify-fix.js";
@@ -10,6 +11,7 @@ export * from "./tools/exec-command.js";
 export * from "./agent/loop.js";
 export * from "./agent/router.js";
 export * from "./agent/provider.js";
+export * from "./security/anti-gaming.js";
 export * from "./daytona/sandbox.js";
 export * from "./hitl/approval.js";
 export * from "./mcp/server.js";
