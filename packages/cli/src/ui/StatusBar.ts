@@ -1,10 +1,10 @@
 import chalk from "chalk";
 
-export function renderStatusBar(modelName = "gpt-4o", durationMs = 1240): void {
+export function renderStatusBar(providerLabel = "OpenAI (gpt-4o)", durationMs = 1240): void {
   const line = [
     chalk.bgCyan.black(" DEBUGFORGE "),
     chalk.gray("│"),
-    chalk.white("Model: ") + chalk.cyan(modelName),
+    chalk.white("Provider: ") + chalk.cyan(providerLabel),
     chalk.gray("│"),
     chalk.white("Daytona: ") + chalk.green("Isolated Active"),
     chalk.gray("│"),

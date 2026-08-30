@@ -1,25 +1,48 @@
+import {
+  SupportedModelProvider,
+  resolveModelProviderConfig,
+  getDefaultModelForProvider,
+  getDefaultFastModelForProvider,
+} from "./provider.js";
+
 export type ModelTier = "reasoning" | "fast";
 
 export interface ModelConfig {
-  provider: "openai" | "anthropic" | "custom";
+  provider: SupportedModelProvider;
   modelName: string;
   temperature: number;
 }
 
-export function routeModel(taskType: "rca" | "patch" | "triage" | "verify"): ModelConfig {
-  // Use GPT-4o for deep reasoning (RCA & complex patch synthesis)
+export function routeModel(
+  taskType: "rca" | "patch" | "triage" | "verify",
+  overrideProvider?: string
+): ModelConfig {
+  const resolved = resolveModelProviderConfig({ provider: overrideProvider });
+
+  // Use primary reasoning model for deep reasoning (RCA & complex patch synthesis)
   if (taskType === "rca" || taskType === "patch") {
+    const reasoningModel =
+      process.env.DEBUGFORGE_REASONING_MODEL ||
+      process.env.REASONING_MODEL ||
+      resolved.modelId ||
+      getDefaultModelForProvider(resolved.provider);
+
     return {
-      provider: "openai",
-      modelName: process.env.OPENAI_REASONING_MODEL || "gpt-4o",
+      provider: resolved.provider,
+      modelName: reasoningModel,
       temperature: 0.1,
     };
   }
 
-  // Use fast model (o3-mini / 3.5-turbo) for triage and verification
+  // Use fast model for triage and verification
+  const fastModel =
+    process.env.DEBUGFORGE_FAST_MODEL ||
+    process.env.FAST_MODEL ||
+    getDefaultFastModelForProvider(resolved.provider);
+
   return {
-    provider: "openai",
-    modelName: process.env.OPENAI_FAST_MODEL || "o3-mini",
+    provider: resolved.provider,
+    modelName: fastModel,
     temperature: 0.0,
   };
 }

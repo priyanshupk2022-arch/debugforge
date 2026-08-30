@@ -1,4 +1,12 @@
-import { runDebugAgent, RootCauseAnalysis, PatchResult } from "@debugforge/core";
+import {
+  runDebugAgent,
+  RootCauseAnalysis,
+  PatchResult,
+  hitlGatekeeper,
+  applyPatch,
+  resolveModelProviderConfig,
+  formatProviderLabel,
+} from "@debugforge/core";
 import { renderHeader } from "../ui/Header.js";
 import { renderAgentEvent } from "../ui/StreamView.js";
 import { renderDiffView } from "../ui/DiffView.js";
@@ -19,6 +27,8 @@ export async function runDiagnoseCommand(errorText?: string, options: DiagnoseCl
   const targetPath = options.target || process.cwd();
   const testCommand = options.test || "npm test";
   const startTime = Date.now();
+  const providerConfig = resolveModelProviderConfig();
+  const providerLabel = formatProviderLabel(providerConfig);
 
   let capturedRca: RootCauseAnalysis | null = null;
   let capturedPatch: PatchResult | null = null;
@@ -49,14 +59,14 @@ export async function runDiagnoseCommand(errorText?: string, options: DiagnoseCl
     renderDiffView(capturedPatch);
   }
 
-  // Phase 5 Approval Pause Checkpoint
-  if (approvalNonce && !options.autoApprove) {
+  // Phase 5 Approval Pause Checkpoint & Real Apply Path
+  if (approvalNonce && capturedPatch && !options.autoApprove) {
     console.log(chalk.bold.yellow("┌─────────────────────────────────────────────────────────────┐"));
     console.log(chalk.bold.yellow("│              ✋ HUMAN-IN-THE-LOOP APPROVAL GATE              │"));
     console.log(chalk.bold.yellow("└─────────────────────────────────────────────────────────────┘"));
     console.log(chalk.bold.white(`  Status:       `) + chalk.bold.bgYellow.black(" AWAITING_APPROVAL "));
     console.log(chalk.bold.white(`  Single-Use Nonce: `) + chalk.cyan(approvalNonce));
-    console.log(chalk.bold.white(`  Files Affected:   `) + chalk.yellow(`${capturedPatch?.patches.length || 0} file(s)`));
+    console.log(chalk.bold.white(`  Files Affected:   `) + chalk.yellow(`${capturedPatch.patches.length} file(s)`));
     console.log(chalk.bold.white(`  Verification:     `) + chalk.green("Triple-Lock Gates Verified (100% test pass)"));
     console.log(chalk.bold.white(`  Risk Level:       `) + chalk.green("LOW (Confined strictly to identified culprit AST nodes)"));
     console.log("");
@@ -64,12 +74,34 @@ export async function runDiagnoseCommand(errorText?: string, options: DiagnoseCl
     if (process.stdin.isTTY) {
       const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
       await new Promise<void>((resolve) => {
-        rl.question(chalk.bold.white("  Apply verified patch to workspace? (y/N): "), (answer) => {
+        rl.question(chalk.bold.white("  Apply verified patch to workspace? (y/N): "), async (answer) => {
           rl.close();
-          if (answer.trim().toLowerCase() === "y" || answer.trim().toLowerCase() === "yes") {
-            console.log(chalk.bold.green("\n  ✔ [OPERATOR SIGN-OFF] Human approval granted. Patch applied."));
+          const isAffirmative = answer.trim().toLowerCase() === "y" || answer.trim().toLowerCase() === "yes";
+          if (isAffirmative) {
+            try {
+              hitlGatekeeper.evaluateDecision(approvalNonce!, "approved", {
+                operator: "cli_operator",
+                currentPatch: capturedPatch!,
+              });
+              await applyPatch(capturedPatch!, targetPath);
+              console.log(
+                chalk.bold.green(
+                  `\n  ✔ [OPERATOR SIGN-OFF] Human approval granted (Nonce: ${approvalNonce}). Verified patch applied to workspace.`
+                )
+              );
+            } catch (err: any) {
+              console.log(chalk.bold.red(`\n  ✖ [HITL Security Error] Patch application blocked: ${err?.message}`));
+            }
           } else {
-            console.log(chalk.bold.red("\n  ✖ [OPERATOR REJECTED] Halting execution. Workspace remained untouched."));
+            hitlGatekeeper.evaluateDecision(approvalNonce!, "rejected", {
+              operator: "cli_operator",
+              feedback: "Rejected by interactive operator",
+            });
+            console.log(
+              chalk.bold.red(
+                "\n  ✖ [OPERATOR REJECTED] Halting execution without modifications. Workspace files remain untouched."
+              )
+            );
           }
           resolve();
         });
@@ -80,5 +112,5 @@ export async function runDiagnoseCommand(errorText?: string, options: DiagnoseCl
   }
 
   const durationMs = Date.now() - startTime;
-  renderStatusBar("gpt-4o", durationMs);
+  renderStatusBar(providerLabel, durationMs);
 }

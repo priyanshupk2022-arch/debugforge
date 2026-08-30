@@ -12,6 +12,7 @@ import { traceAndAnalyze } from "../tools/trace-analyze.js";
 import { autoPatch } from "../tools/auto-patch.js";
 import { verifyFix } from "../tools/verify-fix.js";
 import { hitlGatekeeper } from "../hitl/approval.js";
+import { resolveModelProviderConfig, formatProviderLabel } from "./provider.js";
 import path from "node:path";
 
 export async function* runDebugAgent(options: AgentOptions): AsyncGenerator<AgentEvent> {
@@ -23,12 +24,13 @@ export async function* runDebugAgent(options: AgentOptions): AsyncGenerator<Agen
   } = options;
 
   const resolvedTarget = path.resolve(projectPath);
-  const configuredModel = process.env.OPENAI_MODEL || "gpt-4o";
+  const providerConfig = resolveModelProviderConfig();
+  const providerLabel = formatProviderLabel(providerConfig);
 
   // Event 1: Start ReAct loop
   yield {
     type: "thought",
-    content: `[MODEL ACTION] Initializing DebugForge Autonomous Agent on target: ${path.basename(resolvedTarget)} using model: ${configuredModel}`,
+    content: `[MODEL ACTION] Initializing DebugForge Autonomous Agent on target: ${path.basename(resolvedTarget)} using ${providerLabel}`,
     timestamp: Date.now(),
   };
 

@@ -1,6 +1,7 @@
 import { TrueForge } from "@truefoundry/trueforge-sdk";
 import { TrueForgeMCPServer, trueforgeMCPServer } from "./server.js";
 import { runDebugAgent } from "../agent/loop.js";
+import { resolveModelProviderConfig, buildTrueForgeProviderManifest } from "../agent/provider.js";
 import { AgentEvent } from "../types.js";
 
 export type TrueForgeExecutionMode = "LIVE_TRUEFORGE_HARNESS" | "LOCAL_DEV_MODE";
@@ -73,23 +74,23 @@ export class TrueForgeHarnessBridge {
         const capabilities = await this.client.server.getCapabilities();
 
         // 2. Ensure model provider is registered in TrueForge
-        const modelProvider = process.env.MODEL_PROVIDER || "openai";
-        const modelName = this.config.modelName || process.env.OPENAI_MODEL || "openai/gpt-4o";
-        const shortModelId = modelName.includes("/") ? modelName.split("/")[1] : modelName;
+        const providerConfig = resolveModelProviderConfig({
+          model: this.config.modelName,
+        });
 
-        try {
-          await this.client.settings.modelProviders.createOrUpdate({
-            manifest: {
-              type: modelProvider as any,
-              auth: { apiKey: process.env.OPENAI_API_KEY || "sk-dummy-key" },
-              models: [
-                { modelId: shortModelId, name: shortModelId, properties: {} },
-                { modelId: "o3-mini", name: "o3-mini", properties: {} },
-              ],
-            },
-          });
-        } catch {
-          // Model provider may already exist or be managed externally
+        if (modeSetting === "required" && !providerConfig.apiKey && !providerConfig.baseUrl) {
+          throw new Error(
+            `[TrueForge Provider Blocker] TRUEFORGE_MODE=required but no API credentials or baseUrl were provided for ${providerConfig.provider}. Failing closed.`
+          );
+        }
+
+        if (providerConfig.apiKey || providerConfig.baseUrl) {
+          try {
+            const providerManifest = buildTrueForgeProviderManifest(providerConfig);
+            await this.client.settings.modelProviders.createOrUpdate(providerManifest);
+          } catch {
+            // Model provider may already exist or be managed externally
+          }
         }
 
         // 3. Register or update DebugForge MCP Server in TrueForge settings
@@ -114,7 +115,7 @@ export class TrueForgeHarnessBridge {
             name: agentName,
             manifest: {
               model: {
-                name: modelName,
+                name: providerConfig.fullModelName,
               },
               instructions:
                 "You are DebugForge, an autonomous debugging agent harness. You reproduce failures in Daytona, perform backward causal tracing, synthesize minimal surgical patches, and execute Triple-Lock verification gates.",

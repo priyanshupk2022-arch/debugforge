@@ -18,16 +18,20 @@ CLI / Web / User Request
 │             OFFICIAL TRUEFORGE HARNESS SERVER               │
 │               (@truefoundry/trueforge-sdk)                  │
 │                                                             │
-│  1. Agent Registration:                                     │
+│  1. Provider-Agnostic Model Registration:                   │
+│     client.settings.modelProviders.createOrUpdate(...)      │
+│     (Supports OpenAI, Anthropic, Google, DeepSeek, etc.)    │
+│                                                             │
+│  2. Agent Registration:                                     │
 │     client.agents.create({ manifest: { model, mcpServers }})│
 │                                                             │
-│  2. MCP Server Registration:                                │
+│  3. MCP Server Registration:                                │
 │     client.settings.mcpServers.createOrUpdate(...)          │
 │                                                             │
-│  3. Session Lifecycle:                                      │
+│  4. Session Lifecycle:                                      │
 │     client.sessions.create({ agent: { name } })             │
 │                                                             │
-│  4. Turn Execution & SSE Stream:                            │
+│  5. Turn Execution & SSE Stream:                            │
 │     client.sessions.createTurnStream(session_id, input)     │
 └─────────────────────────────┬───────────────────────────────┘
                               │ Calls registered MCP tools
@@ -52,10 +56,23 @@ CLI / Web / User Request
 └──────────────────────────────┘     └──────────────────────────────┘
 ```
 
-### 2. Local Developer Mode (`LOCAL_DEV_MODE: NOT_TRUEFORGE_RUNTIME`)
-For offline unit tests, local development, and fast single-process CLI demos without an active TrueForge server cluster, DebugForge provides an explicit local reasoning engine (`runDebugAgent()`).
-- **Clear Labeling**: Explicitly logs `[LOCAL_DEV_MODE: NOT_TRUEFORGE_RUNTIME]` with zero false claims of live server connections.
-- **Fail-Closed Gate**: In `TRUEFORGE_MODE=required`, unconfigured or unreachable TrueForge servers halt immediately with a fail-closed blocker exception.
+---
+
+## 🧩 Provider-Agnostic Model Subsystem
+
+> **Design Principle**: DebugForge is model-provider agnostic and uses the provider/model configured by the operator through the TrueForge runtime.
+
+### 1. Model Resolution & Normalization Layer (`packages/core/src/agent/provider.ts`)
+- Dynamically resolves configured provider (`openai`, `anthropic`, `google-gemini`, `custom`, `together-ai`, `fireworks`, `alibaba`, `zai`).
+- Validates that required API credentials exist for the chosen provider (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `GEMINI_API_KEY` / `GOOGLE_API_KEY`, `DEEPSEEK_API_KEY`).
+- Fails closed in production/live mode if selected credentials are missing.
+- Prevents dummy credentials from ever entering live execution paths.
+
+### 2. Provider-Neutral Routing Layer (`packages/core/src/agent/router.ts`)
+- Adaptively routes between deep reasoning tasks (`rca`, `patch`) and fast tasks (`triage`, `verify`) using models native to the operator's chosen provider.
+
+### 3. TrueForge Manifest Generation
+- Converts normalized configurations into official TrueForge SDK `ModelProviderManifest` schemas and provisions agents with full model URIs (e.g. `anthropic/claude-3-5-sonnet-latest` or `google-gemini/gemini-2.0-flash`).
 
 ---
 
@@ -81,16 +98,17 @@ For offline unit tests, local development, and fast single-process CLI demos wit
   - **Lock 2**: Existing test suites pass without regression.
   - **Lock 3**: Targeted concurrency/invariant load assertions pass.
 
-### 5. Cryptographic HITL Gatekeeper (`hitlGatekeeper`)
-- Blocks automatic workspace merging.
+### 5. Cryptographic HITL Gatekeeper & Apply Path (`hitlGatekeeper` & `applyPatch`)
+- Transitions to `AWAITING_APPROVAL`.
 - Emits single-use HMAC-SHA256 signed nonces with expiration timers and SHA-256 patch diff hash tamper verification.
-- Requires operator sign-off before applying changes.
+- **Approved**: Nonce evaluated, signature confirmed, diff hash checked -> `applyPatch()` modifies target project files on disk -> post-apply checks.
+- **Rejected**: Operator rejection records `status: 'rejected'` -> workspace remains completely untouched.
 
 ---
 
 ## 📦 Monorepo Structure
 
-- `packages/core`: Official `@truefoundry/trueforge-sdk` integration, TrueForge MCP server, Daytona sandbox runner, HITL gatekeeper, and domain tools.
+- `packages/core`: Official `@truefoundry/trueforge-sdk` integration, TrueForge MCP server, Daytona sandbox runner, HITL gatekeeper, provider abstraction, and domain tools.
 - `packages/cli`: Interactive terminal UI with Claude Code-style live streaming thoughts, trace tree views, and HUD status bar.
 - `packages/web`: React 19 + Tailwind CSS landing page and interactive failure simulator.
 - `fixtures/`: 3 reproducible real-world bug testbeds (`null-propagation-api`, `race-condition-app`, `memory-leak-server`).

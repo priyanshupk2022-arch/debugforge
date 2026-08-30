@@ -14,6 +14,7 @@
     "dev": "npm --prefix packages/web run dev",
     "test": "node --test packages/core/dist/tests/core.test.js packages/core/dist/tests/adversarial.test.js packages/core/dist/tests/trueforge-integration.test.js packages/core/dist/tests/trueforge-live.test.js",
     "test:live": "node -e \"process.env.TRUEFORGE_LIVE_TEST='true'; require('child_process').execSync('node --test packages/core/dist/tests/trueforge-live.test.js', { stdio: 'inherit' });\"",
+    "test:provider": "node -e \"process.env.REAL_PROVIDER_TEST='true'; require('child_process').execSync('node --test packages/core/dist/tests/provider-smoke.test.js', { stdio: 'inherit' });\"",
     "diagnose": "node packages/cli/dist/index.js diagnose",
     "watch": "node packages/cli/dist/index.js watch",
     "agent": "node packages/cli/dist/index.js agent",

@@ -9,6 +9,7 @@ export * from "./tools/grep-search.js";
 export * from "./tools/exec-command.js";
 export * from "./agent/loop.js";
 export * from "./agent/router.js";
+export * from "./agent/provider.js";
 export * from "./daytona/sandbox.js";
 export * from "./hitl/approval.js";
 export * from "./mcp/server.js";

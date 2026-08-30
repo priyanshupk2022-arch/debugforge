@@ -276,3 +276,15 @@ export function clearStore() {
     synthesizedAt: Date.now(),
   };
 }
+
+/**
+ * Explicitly applies a verified PatchResult to target project directory on disk.
+ */
+export async function applyPatch(patch: PatchResult, projectPath: string): Promise<void> {
+  for (const p of patch.patches) {
+    const fullPath = path.resolve(projectPath, p.filePath);
+    await fs.mkdir(path.dirname(fullPath), { recursive: true });
+    await fs.writeFile(fullPath, p.patchedCode, "utf-8");
+  }
+}
+
