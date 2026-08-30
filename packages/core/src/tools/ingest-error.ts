@@ -9,7 +9,7 @@ export function ingestError(rawLog: string): ErrorReport {
   let category: ErrorReport["category"] = "logic_flaw";
 
   // Check for common error types
-  const errorMatch = rawLog.match(/([A-Z][a-zA-Z0-9_]*Error|TypeError|ReferenceError|RangeError|SyntaxError):\s*(.*)/);
+  const errorMatch = rawLog.match(/^([A-Z][a-zA-Z0-9_]*):\s*(.*)/m) || rawLog.match(/([A-Z][a-zA-Z0-9_]*Error|TypeError|ReferenceError|RangeError|SyntaxError):\s*(.*)/);
   if (errorMatch) {
     errorType = errorMatch[1];
     errorMessage = errorMatch[2]?.trim() || errorMessage;

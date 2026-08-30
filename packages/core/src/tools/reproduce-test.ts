@@ -207,8 +207,10 @@ export function validateBRTPrePatch(
 
   // Signature matching
   const hasDefectTag = combinedOutput.includes("[BRT_DEFECT_REPRODUCED]");
+  const normalizedCategory = candidate.spec.targetErrorType.toLowerCase().replace(/_/g, " ");
   const hasExpectedErrorName =
     combinedOutput.toLowerCase().includes(candidate.spec.targetErrorType.toLowerCase()) ||
+    combinedOutput.toLowerCase().includes(normalizedCategory) ||
     combinedOutput.toLowerCase().includes(candidate.spec.targetErrorMessage.toLowerCase().slice(0, 15));
 
   const matchedSignature = isFailure && (hasDefectTag || hasExpectedErrorName);
