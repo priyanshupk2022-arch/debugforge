@@ -1,4 +1,4 @@
-import { describe, it } from "node:test";
+import { describe, it, before, after } from "node:test";
 import assert from "node:assert";
 import http from "node:http";
 import { spawn } from "node:child_process";
@@ -10,6 +10,47 @@ import { PatchResult } from "../types.js";
 
 describe("TrueForge Live Server Integration & Full E2E Chain Suite", () => {
   const isLiveTest = process.env.TRUEFORGE_LIVE_TEST === "true";
+  const tfPort = 8790;
+  let tfProcess: any = null;
+  const client = new TrueForge({ baseUrl: `http://localhost:${tfPort}` });
+
+  before(async () => {
+    if (!isLiveTest) return;
+
+    // Check if TrueForge server is already running
+    try {
+      await client.server.getCapabilities();
+    } catch {
+      const fs = await import("node:fs");
+      const path = await import("node:path");
+      let cliPath = "./packages/core/node_modules/@truefoundry/trueforge/dist/cli.js";
+      if (!fs.existsSync(cliPath)) {
+        cliPath = "./node_modules/@truefoundry/trueforge/dist/cli.js";
+      }
+
+      // Spawn TrueForge server in background
+      tfProcess = spawn("node", [cliPath, "--port", String(tfPort)], {
+        stdio: "ignore",
+      });
+
+      // Poll until server is ready
+      for (let i = 0; i < 40; i++) {
+        await new Promise((r) => setTimeout(r, 250));
+        try {
+          await client.server.getCapabilities();
+          break;
+        } catch {}
+      }
+    }
+  });
+
+  after(() => {
+    if (tfProcess) {
+      try {
+        tfProcess.kill();
+      } catch {}
+    }
+  });
 
   it("should execute full live TrueForge turn with real MCP tool invocation and stream observation", async (t) => {
     if (!isLiveTest) {
@@ -17,7 +58,6 @@ describe("TrueForge Live Server Integration & Full E2E Chain Suite", () => {
       return;
     }
 
-    const tfPort = 8790;
     const mcpPort = 3101;
     const mockLlmPort = 3102;
 
@@ -110,31 +150,11 @@ describe("TrueForge Live Server Integration & Full E2E Chain Suite", () => {
 
     await new Promise<void>((r) => mockLlmServer.listen(mockLlmPort, () => r()));
 
-    // 2. Ensure TrueForge server is running (spawn if not already running on port 8790)
-    let tfProcess: any = null;
-    let client = new TrueForge({ baseUrl: `http://localhost:${tfPort}` });
-
-    try {
-      await client.server.getCapabilities();
-    } catch {
-      tfProcess = spawn("node", ["./node_modules/@truefoundry/trueforge/dist/cli.js", "--port", String(tfPort)], {
-        stdio: "ignore",
-      });
-      // Wait for server to boot
-      for (let i = 0; i < 20; i++) {
-        await new Promise((r) => setTimeout(r, 250));
-        try {
-          await client.server.getCapabilities();
-          break;
-        } catch {}
-      }
-    }
-
-    // 3. Start real DebugForge MCP Server on mcpPort
+    // 2. Start real DebugForge MCP Server on mcpPort
     const { url: mcpUrl, close: closeMcp } = await startMCPServer(mcpPort);
 
     try {
-      // 4. Configure model provider in TrueForge
+      // 3. Configure model provider in TrueForge
       await client.settings.modelProviders.createOrUpdate({
         manifest: {
           type: "custom",
@@ -144,7 +164,7 @@ describe("TrueForge Live Server Integration & Full E2E Chain Suite", () => {
         },
       });
 
-      // 5. Register DebugForge MCP Server in TrueForge
+      // 4. Register DebugForge MCP Server in TrueForge
       await client.settings.mcpServers.createOrUpdate({
         manifest: {
           name: "debugforge",
@@ -154,7 +174,7 @@ describe("TrueForge Live Server Integration & Full E2E Chain Suite", () => {
         },
       });
 
-      // 6. Provision DebugForge agent in TrueForge
+      // 5. Provision DebugForge agent in TrueForge
       const agentName = "debugforge-live-e2e-agent";
       const agentRes = await client.agents.create({
         name: agentName,
@@ -171,14 +191,14 @@ describe("TrueForge Live Server Integration & Full E2E Chain Suite", () => {
 
       assert.ok(agentRes.data?.id, "TrueForge agent must be provisioned with a valid ID");
 
-      // 7. Create real server-side session
+      // 6. Create real server-side session
       const sessionRes = await client.sessions.create({
         agent: { name: agentName },
       });
       const sessionId = sessionRes.data?.id;
       assert.ok(sessionId, "TrueForge server must allocate a real session ID");
 
-      // 8. Execute real turn stream on TrueForge server
+      // 7. Execute real turn stream on TrueForge server
       const turnStream = await client.sessions.createTurnStream(sessionId, {
         input: [
           {
@@ -224,7 +244,7 @@ describe("TrueForge Live Server Integration & Full E2E Chain Suite", () => {
         }
       }
 
-      // 9. Assert structured E2E evidence
+      // 8. Assert structured E2E evidence
       assert.ok(observedTurnId, "Turn ID must be captured from live stream");
       assert.strictEqual(observedToolCallName, "debugforge_ingest_error", "DebugForge tool name must match");
       assert.ok(observedToolResponse, "Tool response must be returned from DebugForge MCP server");
@@ -241,9 +261,6 @@ describe("TrueForge Live Server Integration & Full E2E Chain Suite", () => {
     } finally {
       await closeMcp();
       mockLlmServer.close();
-      if (tfProcess) {
-        tfProcess.kill();
-      }
     }
   });
 
@@ -266,7 +283,7 @@ describe("TrueForge Live Server Integration & Full E2E Chain Suite", () => {
 
     // 1. Generate approval request (State: AWAITING_APPROVAL)
     const request = hitlGatekeeper.createApprovalRequest(mockPatch);
-    assert.ok(request.nonce, "Single-use cryptographic nonce must be generated");
+    assert.ok(request.nonce, "Single-Use cryptographic nonce must be generated");
     assert.ok(request.signature, "HMAC-SHA256 signature must be bound to diff and nonce");
     assert.ok(request.patchHash, "SHA256 patch hash must be computed for tamper detection");
 
@@ -317,9 +334,6 @@ describe("TrueForge Live Server Integration & Full E2E Chain Suite", () => {
       t.skip("Skipping MCP fail-closed test because TRUEFORGE_LIVE_TEST is not set to 'true'.");
       return;
     }
-
-    const tfPort = 8790;
-    const client = new TrueForge({ baseUrl: `http://localhost:${tfPort}` });
 
     // Register unreachable MCP URL
     await client.settings.mcpServers.createOrUpdate({
