@@ -104,6 +104,52 @@ describe("DebugForge Core Engine Suite", () => {
     assert.strictEqual(customConfig.fullModelName, "custom/deepseek-chat");
     const customManifest = buildTrueForgeProviderManifest(customConfig);
     assert.strictEqual(customManifest.manifest.baseUrl, "https://api.deepseek.com/v1");
+
+    // Together AI Resolution (type: "together")
+    const togetherConfig = resolveModelProviderConfig({
+      provider: "together-ai",
+      model: "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
+      apiKey: "test-together-key",
+    });
+    assert.strictEqual(togetherConfig.provider, "together");
+    const togetherManifest = buildTrueForgeProviderManifest(togetherConfig);
+    assert.strictEqual(togetherManifest.manifest.type, "together");
+
+    // Fireworks Resolution (type: "fireworks")
+    const fireworksConfig = resolveModelProviderConfig({
+      provider: "fireworks",
+      apiKey: "test-fireworks-key",
+    });
+    assert.strictEqual(fireworksConfig.provider, "fireworks");
+    const fireworksManifest = buildTrueForgeProviderManifest(fireworksConfig);
+    assert.strictEqual(fireworksManifest.manifest.type, "fireworks");
+
+    // Alibaba Resolution (type: "alibaba")
+    const alibabaConfig = resolveModelProviderConfig({
+      provider: "alibaba",
+      apiKey: "test-alibaba-key",
+    });
+    assert.strictEqual(alibabaConfig.provider, "alibaba");
+    const alibabaManifest = buildTrueForgeProviderManifest(alibabaConfig);
+    assert.strictEqual(alibabaManifest.manifest.type, "alibaba");
+
+    // Moonshot Resolution (type: "moonshot")
+    const moonshotConfig = resolveModelProviderConfig({
+      provider: "moonshot",
+      apiKey: "test-moonshot-key",
+    });
+    assert.strictEqual(moonshotConfig.provider, "moonshot");
+    const moonshotManifest = buildTrueForgeProviderManifest(moonshotConfig);
+    assert.strictEqual(moonshotManifest.manifest.type, "moonshot");
+
+    // Zai Resolution (type: "zai")
+    const zaiConfig = resolveModelProviderConfig({
+      provider: "zai",
+      apiKey: "test-zai-key",
+    });
+    assert.strictEqual(zaiConfig.provider, "zai");
+    const zaiManifest = buildTrueForgeProviderManifest(zaiConfig);
+    assert.strictEqual(zaiManifest.manifest.type, "zai");
   });
 
   it("should route models adaptively across providers based on task complexity", () => {

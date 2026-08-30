@@ -88,8 +88,10 @@ export class TrueForgeHarnessBridge {
           try {
             const providerManifest = buildTrueForgeProviderManifest(providerConfig);
             await this.client.settings.modelProviders.createOrUpdate(providerManifest);
-          } catch {
-            // Model provider may already exist or be managed externally
+          } catch (err: any) {
+            throw new Error(
+              `[TrueForge Provider Registration Blocker] Failed to register model provider "${providerConfig.provider}" on TrueForge server: ${err?.message || err}`
+            );
           }
         }
 

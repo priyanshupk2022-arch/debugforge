@@ -3,10 +3,23 @@ export type SupportedModelProvider =
   | "anthropic"
   | "google-gemini"
   | "custom"
+  | "together"
   | "fireworks"
-  | "together-ai"
   | "alibaba"
+  | "moonshot"
   | "zai";
+
+export const VALID_TRUEFORGE_PROVIDER_TYPES: readonly SupportedModelProvider[] = [
+  "openai",
+  "anthropic",
+  "google-gemini",
+  "custom",
+  "together",
+  "fireworks",
+  "alibaba",
+  "moonshot",
+  "zai",
+] as const;
 
 export interface ResolvedModelConfig {
   provider: SupportedModelProvider;
@@ -27,18 +40,27 @@ export interface ResolveProviderOptions {
 }
 
 /**
- * Normalizes user-supplied provider names into TrueForge SDK provider types.
+ * Normalizes user-supplied provider names into official TrueForge SDK provider types.
  */
 export function normalizeProviderName(rawProvider?: string): SupportedModelProvider {
   const p = (rawProvider || "").trim().toLowerCase();
   if (p === "anthropic" || p === "claude") return "anthropic";
   if (p === "google" || p === "gemini" || p === "google-gemini" || p === "google_gemini") return "google-gemini";
+  if (p === "together" || p === "together-ai" || p === "together_ai") return "together";
   if (p === "fireworks") return "fireworks";
-  if (p === "together" || p === "together-ai" || p === "together_ai") return "together-ai";
   if (p === "alibaba" || p === "qwen") return "alibaba";
+  if (p === "moonshot") return "moonshot";
   if (p === "zai") return "zai";
   if (p === "custom" || p === "deepseek" || p === "ollama" || p === "local") return "custom";
   return "openai";
+}
+
+/**
+ * Validates whether a given provider string is supported by the TrueForge runtime.
+ */
+export function isSupportedProviderType(provider: string): provider is SupportedModelProvider {
+  const normalized = normalizeProviderName(provider);
+  return VALID_TRUEFORGE_PROVIDER_TYPES.includes(normalized);
 }
 
 /**
@@ -52,12 +74,14 @@ export function getDefaultModelForProvider(provider: SupportedModelProvider): st
       return "gemini-2.0-flash";
     case "custom":
       return "deepseek-chat";
-    case "together-ai":
+    case "together":
       return "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo";
     case "fireworks":
       return "accounts/fireworks/models/deepseek-v3";
     case "alibaba":
       return "qwen-max";
+    case "moonshot":
+      return "moonshot-v1-8k";
     case "zai":
       return "glm-4";
     case "openai":
@@ -77,12 +101,14 @@ export function getDefaultFastModelForProvider(provider: SupportedModelProvider)
       return "gemini-1.5-flash";
     case "custom":
       return "deepseek-chat";
-    case "together-ai":
+    case "together":
       return "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo";
     case "fireworks":
       return "accounts/fireworks/models/llama-v3p1-8b-instruct";
     case "alibaba":
       return "qwen-plus";
+    case "moonshot":
+      return "moonshot-v1-8k";
     case "zai":
       return "glm-4-flash";
     case "openai":
@@ -93,10 +119,6 @@ export function getDefaultFastModelForProvider(provider: SupportedModelProvider)
 
 /**
  * Resolves the active model provider configuration from explicit options or environment variables.
- * Environment variables checked (in priority order):
- *  - DEBUGFORGE_MODEL_PROVIDER / MODEL_PROVIDER / LLM_PROVIDER
- *  - DEBUGFORGE_MODEL / MODEL_NAME / LLM_MODEL
- *  - Provider-specific API keys (ANTHROPIC_API_KEY, GEMINI_API_KEY/GOOGLE_API_KEY, OPENAI_API_KEY, CUSTOM_API_KEY/DEEPSEEK_API_KEY)
  */
 export function resolveModelProviderConfig(options: ResolveProviderOptions = {}): ResolvedModelConfig {
   const rawProvider =
@@ -135,7 +157,7 @@ export function resolveModelProviderConfig(options: ResolveProviderOptions = {})
       case "custom":
         apiKey = process.env.CUSTOM_API_KEY || process.env.DEEPSEEK_API_KEY || process.env.LOCAL_API_KEY;
         break;
-      case "together-ai":
+      case "together":
         apiKey = process.env.TOGETHER_API_KEY || process.env.TOGETHERAI_API_KEY;
         break;
       case "fireworks":
@@ -143,6 +165,9 @@ export function resolveModelProviderConfig(options: ResolveProviderOptions = {})
         break;
       case "alibaba":
         apiKey = process.env.ALIBABA_API_KEY || process.env.DASHSCOPE_API_KEY;
+        break;
+      case "moonshot":
+        apiKey = process.env.MOONSHOT_API_KEY;
         break;
       case "zai":
         apiKey = process.env.ZAI_API_KEY || process.env.ZHIPU_API_KEY;
@@ -162,7 +187,7 @@ export function resolveModelProviderConfig(options: ResolveProviderOptions = {})
     process.env.DEEPSEEK_BASE_URL;
 
   // Fail-Closed Validation when credentials are required (production / live runs)
-  if (options.requireCredentials && !apiKey) {
+  if (options.requireCredentials && !apiKey && normalizedProvider !== "custom") {
     throw new Error(
       `[Model Provider Blocker] Missing required API key for provider "${normalizedProvider}". Set ${getEnvVarHintForProvider(
         normalizedProvider
@@ -192,12 +217,14 @@ export function getEnvVarHintForProvider(provider: SupportedModelProvider): stri
       return "GEMINI_API_KEY (or GOOGLE_API_KEY)";
     case "custom":
       return "CUSTOM_API_KEY (or DEEPSEEK_API_KEY)";
-    case "together-ai":
+    case "together":
       return "TOGETHER_API_KEY";
     case "fireworks":
       return "FIREWORKS_API_KEY";
     case "alibaba":
       return "ALIBABA_API_KEY";
+    case "moonshot":
+      return "MOONSHOT_API_KEY";
     case "zai":
       return "ZAI_API_KEY";
     case "openai":
@@ -207,26 +234,28 @@ export function getEnvVarHintForProvider(provider: SupportedModelProvider): stri
 }
 
 /**
- * Builds the TrueForge ModelProviderManifest for client.settings.modelProviders.createOrUpdate
+ * Builds the official TrueForge ModelProviderManifest schema.
  */
 export function buildTrueForgeProviderManifest(config: ResolvedModelConfig): any {
-  if (!config.apiKey && !config.baseUrl) {
+  if (!VALID_TRUEFORGE_PROVIDER_TYPES.includes(config.provider)) {
     throw new Error(
-      `[TrueForge Provider Blocker] Cannot register provider "${config.provider}" without API credentials or baseUrl.`
+      `[TrueForge Provider Blocker] Unsupported provider type "${config.provider}". Supported types: ${VALID_TRUEFORGE_PROVIDER_TYPES.join(
+        ", "
+      )}`
     );
   }
 
-  const baseManifest: any = {
-    name: config.provider,
-    type: config.provider,
-  };
-
   if (config.provider === "custom") {
+    if (!config.baseUrl) {
+      throw new Error(
+        `[TrueForge Provider Blocker] Custom model provider requires a valid baseUrl (e.g. http://localhost:8000/v1 or https://api.deepseek.com/v1).`
+      );
+    }
     return {
       manifest: {
         type: "custom",
-        name: "custom-provider",
-        baseUrl: config.baseUrl || "http://localhost:8000/v1",
+        name: config.rawProviderName || "custom",
+        baseUrl: config.baseUrl,
         auth: config.apiKey ? { apiKey: config.apiKey } : undefined,
         models: [
           { modelId: config.modelId, name: config.modelId, properties: {} },
@@ -235,14 +264,26 @@ export function buildTrueForgeProviderManifest(config: ResolvedModelConfig): any
     };
   }
 
+  if (!config.apiKey) {
+    throw new Error(
+      `[TrueForge Provider Blocker] Cannot register provider "${config.provider}" without an API key. Set ${getEnvVarHintForProvider(
+        config.provider
+      )}.`
+    );
+  }
+
   return {
     manifest: {
-      ...baseManifest,
+      type: config.provider,
       auth: { apiKey: config.apiKey },
       ...(config.baseUrl ? { baseUrl: config.baseUrl } : {}),
       models: [
         { modelId: config.modelId, name: config.modelId, properties: {} },
-        { modelId: getDefaultFastModelForProvider(config.provider), name: getDefaultFastModelForProvider(config.provider), properties: {} },
+        {
+          modelId: getDefaultFastModelForProvider(config.provider),
+          name: getDefaultFastModelForProvider(config.provider),
+          properties: {},
+        },
       ],
     },
   };
