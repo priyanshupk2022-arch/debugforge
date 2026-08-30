@@ -20,16 +20,18 @@ export class TrueForgeHarnessBridge {
   public executionMode: TrueForgeExecutionMode = "LOCAL_DEV_MODE";
   public agentId: string | null = null;
   public registeredMcpName: string | null = null;
+  public serverUrl: string | null = null;
 
   constructor(
     private config: TrueForgeHarnessConfig = {},
     mcpServer: TrueForgeMCPServer = trueforgeMCPServer
   ) {
     this.mcpServer = mcpServer;
-    const baseUrl = config.baseUrl || process.env.TRUEFORGE_BASE_URL;
+    const baseUrl = config.baseUrl || process.env.TRUEFORGE_BASE_URL || (process.env.TRUEFORGE_MODE === "required" ? "http://localhost:8790" : undefined);
     const token = config.apiKey || process.env.TRUEFORGE_API_KEY;
 
     if (baseUrl) {
+      this.serverUrl = baseUrl;
       this.client = new TrueForge({
         baseUrl,
         token,
@@ -46,7 +48,8 @@ export class TrueForgeHarnessBridge {
   }
 
   /**
-   * Initializes the TrueForge Harness by registering the DebugForge MCP server
+   * Initializes the TrueForge Harness by connecting to the server,
+   * registering the model provider, registering DebugForge MCP server,
    * and provisioning the autonomous debugging agent on the TrueForge server.
    */
   async initializeHarness(): Promise<{
@@ -69,9 +72,29 @@ export class TrueForgeHarnessBridge {
         // 1. Verify server capabilities
         const capabilities = await this.client.server.getCapabilities();
 
-        // 2. Register or update DebugForge MCP Server in TrueForge settings
+        // 2. Ensure model provider is registered in TrueForge
+        const modelProvider = process.env.MODEL_PROVIDER || "openai";
+        const modelName = this.config.modelName || process.env.OPENAI_MODEL || "openai/gpt-4o";
+        const shortModelId = modelName.includes("/") ? modelName.split("/")[1] : modelName;
+
+        try {
+          await this.client.settings.modelProviders.createOrUpdate({
+            manifest: {
+              type: modelProvider as any,
+              auth: { apiKey: process.env.OPENAI_API_KEY || "sk-dummy-key" },
+              models: [
+                { modelId: shortModelId, name: shortModelId, properties: {} },
+                { modelId: "o3-mini", name: "o3-mini", properties: {} },
+              ],
+            },
+          });
+        } catch {
+          // Model provider may already exist or be managed externally
+        }
+
+        // 3. Register or update DebugForge MCP Server in TrueForge settings
         const mcpServerName = "debugforge";
-        const mcpUrl = this.config.mcpServerUrl || process.env.DEBUGFORGE_MCP_URL || "http://localhost:3000/mcp";
+        const mcpUrl = this.config.mcpServerUrl || process.env.DEBUGFORGE_MCP_URL || "http://localhost:3000/sse";
 
         await this.client.settings.mcpServers.createOrUpdate({
           manifest: {
@@ -83,9 +106,8 @@ export class TrueForgeHarnessBridge {
         });
         this.registeredMcpName = mcpServerName;
 
-        // 3. Register or locate DebugForge agent on TrueForge server
+        // 4. Register or locate DebugForge agent on TrueForge server
         const agentName = this.config.agentName || "debugforge-autonomous-agent";
-        const modelName = this.config.modelName || process.env.OPENAI_MODEL || "openai/gpt-4o";
 
         try {
           const agentRes = await this.client.agents.create({
@@ -101,8 +123,8 @@ export class TrueForgeHarnessBridge {
           });
           this.agentId = agentRes.data?.id || null;
         } catch (err: any) {
-          // If agent already exists, list agents to locate ID
-          if (err?.message?.includes("already taken") || err?.status === 409) {
+          // If agent already exists, locate existing ID
+          if (err?.message?.includes("already taken") || err?.status === 409 || err?.statusCode === 409) {
             const listRes = await this.client.agents.list();
             const existing = listRes.data?.find((a: any) => a.name === agentName);
             if (existing) {
@@ -123,7 +145,7 @@ export class TrueForgeHarnessBridge {
       } catch (err) {
         if (modeSetting === "required") {
           throw new Error(
-            `[TrueForge Harness Blocker] Failed to connect to live TrueForge server at ${process.env.TRUEFORGE_BASE_URL}: ${(err as Error).message}. Halting in required mode.`
+            `[TrueForge Harness Blocker] Failed to connect to live TrueForge server at ${this.serverUrl}: ${(err as Error).message}. Halting in required mode.`
           );
         }
         console.warn(

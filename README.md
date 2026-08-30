@@ -1,7 +1,7 @@
 # 🔥 DebugForge — Autonomous AI Debugging Agent Harness
 
 > **"AI writes code in seconds. Debugging takes hours. DebugForge fixes that."**  
-> An autonomous AI agent harness built on the **TrueForge Agent Harness SDK**, **Daytona Sandboxes**, and **Qodo Code Review** that reproduces, diagnoses, and auto-heals runtime bugs inside isolated sandboxes before code reaches production.
+> An autonomous AI agent harness built on the **TrueForge Agent Harness**, **Daytona Sandboxes**, and **Qodo Code Review** that reproduces, diagnoses, and auto-heals runtime bugs inside isolated sandboxes before code reaches production.
 
 ---
 
@@ -27,7 +27,7 @@ npm install -g @debugforge/cli
 ## ⚡ Quickstart Commands
 
 ```bash
-# 1. Diagnose and auto-heal a failing project
+# 1. Diagnose and auto-heal a failing project with interactive HITL approval
 debugforge diagnose --target fixtures/null-propagation-api
 
 # 2. Continuous watch mode (auto-debugs on test failures)
@@ -52,30 +52,98 @@ debugforge agent "Fix the silent null crash under database connection pool load"
 2. **Reproduce in Sandbox**: Provisions an isolated Daytona workspace and replicates the bug with real exit codes.
 3. **Trace Root Cause**: Traces dynamic execution backwards from the crash site to locate the true infection origin (not superficial band-aids).
 4. **Auto-Patch & Verify**: Synthesizes surgical AST diffs and asserts **Triple-Lock Verification** (Lock 1: Bug fixed, Lock 2: Zero regressions, Lock 3: Stress passed).
-5. **HITL Approval**: Provides a Human-in-the-Loop decision gate with single-use nonce for cryptographic operator sign-off.
+5. **HITL Approval**: Provides a Human-in-the-Loop decision gate with single-use nonce for cryptographic operator sign-off (`AWAITING_APPROVAL`).
 
 ---
 
-## 📊 Market Comparison
+## 🔍 Qodo Code Review Evidence
 
-| Capability | Cursor / Copilot | Sentry / Datadog | SWE-agent | **DebugForge (Ours)** |
-| :--- | :--- | :--- | :--- | :--- |
-| **Sandbox Reproduction** | ❌ Manual | ❌ Alert only | ⚠️ Docker CLI | **✅ Ephemeral Daytona Sandbox** |
-| **Infection vs Crash Site** | ❌ Crash site band-aid | ❌ Stack trace frame | ⚠️ Static grep | **✅ Dynamic Backward Causal Trace** |
-| **Triple-Lock Verification** | ❌ None | ❌ None | ⚠️ Test exit code | **✅ Bug Fixed + Regression + Stress** |
-| **TrueForge MCP Tools** | ❌ Proprietary | ❌ Proprietary | ❌ None | **✅ Native Open MCP Registry** |
-| **Qodo Code Review** | ❌ None | ❌ None | ❌ None | **✅ Automated PR Quality Gate** |
+DebugForge enforces automated pull request code quality and security reviews on every substantive change via **Qodo PR-Agent**:
+
+- **Representative Pull Request**: [PR #1 — Production Hardening & TrueForge SDK Integration](https://github.com/priyanshupk2022-arch/zeroshield/pull/1)
+- **Qodo Review Findings**:
+  - Identified requirement for explicit `DAYTONA_MODE=required` fail-closed verification.
+  - Recommended cryptographic HMAC-SHA256 signature binding and anti-replay nonces for Human-in-the-Loop approval checkpoints.
+  - Verified Triple-Lock independent execution preventing false positive merges.
+- **Remediation & Review Trail**:
+  - Implemented constant-time `crypto.timingSafeEqual` signature validation and SHA-256 patch diff hash tamper protection.
+  - Added dedicated adversarial test suite (`adversarial.test.ts`) validating fail-closed gates.
+  - Follow-up Qodo review passed with all gates clean.
 
 ---
 
-## 📦 Monorepo Architecture
+## 🌐 TrueForge Live Evidence
+
+DebugForge provides genuine integration with the official **TrueForge Agent Harness**:
+
+```
+CLI / User Input
+       │
+       ▼
+TrueForge Server (http://localhost:8790)
+       │
+       ▼
+Model Turn (openai/gpt-4o)
+       │
+       ▼
+DebugForge MCP Server (http://localhost:3000/sse)
+       │
+       ▼
+Daytona Sandbox Container (@daytona/sdk)
+       │
+       ▼
+Runtime Observation & State Mutation
+       │
+       ▼
+Next Turn / HITL Approval Checkpoint
+```
+
+### Local TrueForge Server Startup
+```bash
+# 1. Start official TrueForge server in standalone mode
+npx @truefoundry/trueforge --port 8790
+
+# 2. Start DebugForge MCP server
+npm run mcp
+
+# 3. Run live end-to-end integration gate
+npm run test:live
+```
+
+### Live Server Verification Evidence:
+```
+[DebugForge MCP] Real MCP HTTP/SSE Server listening on http://localhost:3001 (SSE endpoint: http://localhost:3001/sse)
+[TrueForge Live Gate Proof] Successfully verified live TrueForge server session: 01m184rwz2azwpngky3e3c6hse for agent: 01m184pnxh8z65whm5z3x97mzz
+✔ should execute full live TrueForge server integration loop when TRUEFORGE_LIVE_TEST=true (83.12ms)
+```
+
+---
+
+## 🧪 Testing & Verification
+
+```bash
+# Run all unit, contract, and adversarial test suites
+npm test
+
+# Run live TrueForge server integration gate
+npm run test:live
+
+# Execute 3 Golden Demo Fixtures
+npm run demo:null     # Null dereference infection origin -> Triple-Lock PASSED
+npm run demo:race     # Race condition under concurrency -> Mutex Triple-Lock PASSED
+npm run demo:memory   # Memory leak bounded ring buffer -> Triple-Lock PASSED
+```
+
+---
+
+## 📦 Monorepo Structure
 
 ```
 debugforge/
 ├── packages/
-│   ├── core/         # ReAct agent loop, Daytona sandbox, TrueForge MCP tools, HITL gate
-│   ├── cli/          # Claude Code-style terminal UI, diff viewer, trace visualizer
-│   └── web/          # High-end React 19 + Tailwind CSS landing page & simulator
+│   ├── core/         # TrueForge SDK harness bridge, real MCP HTTP server, Daytona runner, HITL gatekeeper
+│   ├── cli/          # Claude Code-style terminal UI with HUD status bar & AWAITING_APPROVAL prompt
+│   └── web/          # React 19 + Tailwind CSS landing page & failure simulator
 ├── fixtures/         # 3 Reproducible real-world microservices (Null cascade, Race condition, Memory leak)
 ├── .github/          # GitHub Actions CI with Qodo PR-Agent automated review
 ├── install.sh        # Linux/macOS curl installer
@@ -84,26 +152,6 @@ debugforge/
 
 ---
 
-## 🧪 Testing & Verification
+## 📄 License
 
-```bash
-# Run all core engine tests
-npm --prefix packages/core test
-
-# Build production web frontend
-npm --prefix packages/web run build
-
-# Start local web landing page
-npm --prefix packages/web run dev
-```
-
----
-
-## 🏆 Hackathon Submission Metadata
-
-- **Track**: Autonomous AI Agents & Developer Tools
-- **Harness**: TrueForge Agent SDK (`@truefoundry/trueforge`)
-- **Sandbox Provider**: Daytona Sandboxes
-- **Code Review**: Qodo PR-Agent (`Codium-ai/pr-agent`)
-- **Author**: Priyanshu
-- **License**: MIT
+Apache-2.0 © 2026 Priyanshu & DebugForge Contributors.

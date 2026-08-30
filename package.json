@@ -10,9 +10,10 @@
     "build": "npm --prefix packages/core run build && npm --prefix packages/cli run build",
     "build:web": "npm --prefix packages/web run build",
     "build:all": "npm --prefix packages/core run build && npm --prefix packages/cli run build && npm --prefix packages/web run build",
+    "mcp": "node packages/core/dist/mcp/http-server.js",
     "dev": "npm --prefix packages/web run dev",
     "test": "node --test packages/core/dist/tests/core.test.js packages/core/dist/tests/adversarial.test.js packages/core/dist/tests/trueforge-integration.test.js packages/core/dist/tests/trueforge-live.test.js",
-    "test:live": "node --test packages/core/dist/tests/trueforge-live.test.js",
+    "test:live": "node -e \"process.env.TRUEFORGE_LIVE_TEST='true'; require('child_process').execSync('node --test packages/core/dist/tests/trueforge-live.test.js', { stdio: 'inherit' });\"",
     "diagnose": "node packages/cli/dist/index.js diagnose",
     "watch": "node packages/cli/dist/index.js watch",
     "agent": "node packages/cli/dist/index.js agent",
@@ -36,5 +37,8 @@
   "devDependencies": {
     "@types/node": "^22.13.4",
     "typescript": "^5.7.3"
+  },
+  "dependencies": {
+    "@truefoundry/trueforge": "^0.1.4"
   }
 }
