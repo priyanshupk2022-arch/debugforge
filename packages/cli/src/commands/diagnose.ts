@@ -14,11 +14,14 @@ import { renderTraceView } from "../ui/TraceView.js";
 import { renderStatusBar } from "../ui/StatusBar.js";
 import chalk from "chalk";
 import readline from "node:readline";
+import * as fs from "node:fs";
+import * as path from "node:path";
 
 export interface DiagnoseCliOptions {
   target?: string;
   test?: string;
   autoApprove?: boolean;
+  prompt?: string;
 }
 
 export async function runDiagnoseCommand(errorText?: string, options: DiagnoseCliOptions = {}): Promise<void> {
@@ -35,6 +38,7 @@ export async function runDiagnoseCommand(errorText?: string, options: DiagnoseCl
   let approvalNonce: string | null = null;
 
   for await (const event of runDebugAgent({
+    prompt: options.prompt,
     rawError: errorText,
     projectPath: targetPath,
     testCommand,
@@ -97,6 +101,20 @@ export async function runDiagnoseCommand(errorText?: string, options: DiagnoseCl
               operator: "cli_operator",
               feedback: "Rejected by interactive operator",
             });
+            // Revert candidate patch to ensure host files remain completely untouched
+            if (capturedPatch?.patches) {
+              for (const patch of capturedPatch.patches) {
+                if (patch.originalCode) {
+                  const fullPath = path.resolve(targetPath, patch.filePath);
+                  if (fs.existsSync(fullPath)) {
+                    const currentContent = fs.readFileSync(fullPath, "utf-8");
+                    if (currentContent.includes(patch.patchedCode)) {
+                      fs.writeFileSync(fullPath, currentContent.replace(patch.patchedCode, patch.originalCode));
+                    }
+                  }
+                }
+              }
+            }
             console.log(
               chalk.bold.red(
                 "\n  ✖ [OPERATOR REJECTED] Halting execution without modifications. Workspace files remain untouched."

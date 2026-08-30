@@ -68,7 +68,11 @@ export async function* runDebugAgent(options: AgentOptions): AsyncGenerator<Agen
     timestamp: Date.now(),
   };
 
-  const combinedError = rawError || initialExec.stderr || initialExec.stdout;
+  if (options.prompt) {
+    taskMemory.addVerifiedFact(taskId, `User Goal: ${options.prompt}`);
+  }
+
+  const combinedError = rawError || options.prompt || initialExec.stderr || initialExec.stdout;
   const errorReport: ErrorReport = ingestError(combinedError);
   taskMemory.addVerifiedFact(taskId, `Crash site: ${errorReport.crashSite.file}:${errorReport.crashSite.line} [${errorReport.errorType}]`);
 
@@ -78,8 +82,8 @@ export async function* runDebugAgent(options: AgentOptions): AsyncGenerator<Agen
     timestamp: Date.now(),
   };
 
-  // Fail-Closed Check: If there was no crash and no error, stop
-  if (!initialExec.reproduced && !rawError) {
+  // Fail-Closed Check: If there was no crash, no raw error, and no goal prompt, stop
+  if (!initialExec.reproduced && !rawError && !options.prompt) {
     yield {
       type: "complete",
       summary: "No reproducible crash or error detected in sandbox. Halting to prevent unnecessary mutations.",

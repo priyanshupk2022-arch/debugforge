@@ -5,21 +5,39 @@
 
 ---
 
-## 🚀 Quick Install
+## 🚀 Quick Install & Setup
 
-### Linux / macOS / WSL2 (One-line curl)
+### 1. Clone & Build (Recommended for Evaluation & Hackathon Demo)
 ```bash
+# Clone the repository
+git clone https://github.com/priyanshupk2022-arch/zeroshield.git
+cd zeroshield
+
+# Install dependencies and build all packages
+npm install
+npm run build:all
+
+# Run complete test suite (Unit, Adversarial, Next-Gen, Remediation, TrueForge)
+npm test
+
+# Run TrueForge Live Integration & Benchmark
+npm run test:live
+npm run bench
+```
+
+### 2. Link CLI Globally
+```bash
+npm link --prefix packages/cli
+debugforge --help
+```
+
+### 3. Automated Install Scripts
+```bash
+# Linux / macOS / WSL2
 curl -fsSL https://raw.githubusercontent.com/priyanshupk2022-arch/zeroshield/main/install.sh | bash
-```
 
-### Windows Native PowerShell
-```powershell
+# Windows PowerShell
 iex (irm https://raw.githubusercontent.com/priyanshupk2022-arch/zeroshield/main/install.ps1)
-```
-
-### Global NPM
-```bash
-npm install -g @debugforge/cli
 ```
 
 ---
